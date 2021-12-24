@@ -73,6 +73,18 @@ function additionalComposeMonitoringArgs() {
     fi
 }
 
+function additionalComposeContainerMonitoringArgs() {
+    source .env
+
+    if [ "$CONTAINER_LOGGING_ENABLED" = true ]
+    then
+      ADDITIONAL_COMPOSE_CONTAINER_LOGGING_ARGS="-f docker-compose.loki-promtail.yml"
+      echo $ADDITIONAL_COMPOSE_CONTAINER_LOGGING_ARGS
+    else
+      echo ""
+    fi
+}
+
 function additionalStartupServices() {
     source .env
     ADDITIONAL_STARTUP_SERVICES=""
@@ -88,4 +100,6 @@ function additionalStartupServices() {
         exit 1
     esac
     echo $ADDITIONAL_STARTUP_SERVICES
+
+    
 }

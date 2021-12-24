@@ -32,6 +32,11 @@ services:
     ports:
       - 9090:9090
     restart: always
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
+
   grafana:
     image: grafana/grafana
     user: "472"
@@ -45,3 +50,19 @@ services:
     env_file:
       - monitoring/grafana/config.monitoring
     restart: always
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
+  cadvisor:
+    image: google/cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - 8079:8080
+    restart: always
+    deploy:
+      mode: global
