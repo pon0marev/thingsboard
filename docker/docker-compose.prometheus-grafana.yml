@@ -41,7 +41,7 @@ services:
     image: grafana/grafana
     user: "472"
     depends_on:
-      - prometheus
+      - prometheus        
     ports:
       - 3000:3000
     volumes:
@@ -63,6 +63,30 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
     ports:
       - 8079:8080
+    restart: always
+    deploy:
+      mode: global
+  node-exporter:
+    image: prom/node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command: 
+      - '--path.procfs=/host/proc' 
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    ports:
+      - 9100:9100
+    restart: always
+    deploy:
+      mode: global
+  kafka-exporter:
+    image: danielqsj/kafka-exporter
+    command: ["--kafka.server=kafka:9092"]
+    ports:
+      - 9308:9308
     restart: always
     deploy:
       mode: global

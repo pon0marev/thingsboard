@@ -24,6 +24,7 @@ services:
     image: grafana/loki:2.2.1
     ports:
       - "3100:3100"
+    restart: unless-stopped
     volumes:
       - ./monitoring/loki/data:/loki/data
     command: -config.file=/etc/loki/local-config.yaml
@@ -32,7 +33,6 @@ services:
       options:
         tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
   promtail:
-    container_name: promtail
     image: grafana/promtail:2.2.1
     ports:
       - "9080:9080"
