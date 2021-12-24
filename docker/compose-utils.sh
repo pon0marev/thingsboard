@@ -73,7 +73,7 @@ function additionalComposeMonitoringArgs() {
     fi
 }
 
-function additionalComposeContainerMonitoringArgs() {
+function additionalComposeContainerLogginingArgs() {
     source .env
 
     if [ "$CONTAINER_LOGGING_ENABLED" = true ]
