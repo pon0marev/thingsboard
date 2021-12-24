@@ -25,6 +25,6 @@ ADDITIONAL_COMPOSE_ARGS=$(additionalComposeArgs) || exit $?
 
 ADDITIONAL_COMPOSE_MONITORING_ARGS=$(additionalComposeMonitoringArgs) || exit $?
 
-ADDITIONAL_COMPOSE_CONTAINER_MONITORING_ARGS=$(additionalComposeContainerMonitoringArgs) || exit $?
+ADDITIONAL_COMPOSE_CONTAINER_LOGGING_ARGS=$(additionalComposeContainerLoggingArgs) || exit $?
 
 docker-compose -f docker-compose.yml $ADDITIONAL_COMPOSE_ARGS $ADDITIONAL_COMPOSE_QUEUE_ARGS $ADDITIONAL_COMPOSE_MONITORING_ARGS $ADDITIONAL_COMPOSE_CONTAINER_LOGGING_ARGS up -d
