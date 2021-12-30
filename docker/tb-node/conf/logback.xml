@@ -40,7 +40,7 @@
         </encoder>
     </appender>
 
-    <logger name="org.thingsboard.server" level="DEBUG" />
+    <logger name="org.thingsboard.server" level="INFO" />
     <logger name="com.google.common.util.concurrent.AggregateFuture" level="OFF" />
 
     <root level="INFO">

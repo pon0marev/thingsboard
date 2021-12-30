@@ -17,6 +17,7 @@ scrape_configs:
           job: containerlogs
           __path__: /var/lib/docker/containers/*/*log
     pipeline_stages:
+
       - json:
           expressions:
             output: log
@@ -41,6 +42,10 @@ scrape_configs:
           container_id:
       - output:
           source: output
+      - multiline:
+          firstline: '\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}\,\d{3}'
+          max_wait_time: 3s
+          expression: '.*log.:(?P<log>[a-zA-Z]+).*stream.:(?P<stream>[T\d-:.Z]*).*attrs.:(?P<attrs>[a-zA-Z]+)'  
 
   - job_name: thingsboard
     static_configs:
@@ -49,11 +54,21 @@ scrape_configs:
         labels:
           job: thingsboard
           __path__: /var/log/thingsboard/*.log
+    pipeline_stages:
+      - multiline:
+          firstline: '\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}\,\d{3}'
+          max_wait_time: 3s
+          
+
   
-  - job_name: varlog
+  - job_name: varlog1
     static_configs:
       - targets:
           - localhost
         labels:
-          job: varlog
+          job: varlog1
           __path__: /var/log/*log*
+    pipeline_stages:
+      - multiline:
+          firstline: '^\[\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}\]'
+          max_wait_time: 3s

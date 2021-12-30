@@ -27,6 +27,10 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./tb-node/postgres:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
   cassandra:
     restart: always
     image: "cassandra:3.11.3"
@@ -42,6 +46,10 @@ services:
       - redis
       - postgres
       - cassandra
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
   tb-core2:
     env_file:
       - tb-node.hybrid.env

@@ -37,3 +37,5 @@ rebuild-docker.sh
 .run/**
 .run
 /docker/tb-node
+/docker/monitoring/loki/data
+/docker/monitoring/promtail/data

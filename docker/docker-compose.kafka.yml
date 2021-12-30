@@ -26,6 +26,10 @@ services:
       - kafka.env
     depends_on:
       - zookeeper
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
   tb-js-executor:
     env_file:
       - queue-kafka.env

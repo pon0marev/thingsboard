@@ -27,6 +27,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./tb-node/postgres:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
+
   tb-core1:
     env_file:
       - tb-node.postgres.env
@@ -34,6 +39,7 @@ services:
       - zookeeper
       - redis
       - postgres
+
   tb-core2:
     env_file:
       - tb-node.postgres.env
@@ -41,6 +47,7 @@ services:
       - zookeeper
       - redis
       - postgres
+
   tb-rule-engine1:
     env_file:
       - tb-node.postgres.env
@@ -48,6 +55,7 @@ services:
       - zookeeper
       - redis
       - postgres
+
   tb-rule-engine2:
     env_file:
       - tb-node.postgres.env
@@ -55,3 +63,4 @@ services:
       - zookeeper
       - redis
       - postgres
+

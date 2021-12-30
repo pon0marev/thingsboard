@@ -26,8 +26,9 @@ services:
       - "3100:3100"
     restart: unless-stopped
     volumes:
-      - ./monitoring/loki/data:/loki/data
-    command: -config.file=/etc/loki/local-config.yaml
+      - ./monitoring/loki/data:/loki
+      - ./monitoring/loki/config-loki.yaml:/etc/loki/config-loki.yaml
+    command: -config.file=/etc/loki/config-loki.yaml
     logging:
       driver: json-file
       options:
@@ -41,6 +42,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers
       - /var/log:/var/log
       - ./monitoring/promtail/promtail.yml:/etc/promtail/promtail.yml
+      - ./monitoring/promtail/promtail-data:/var/lib/promtail/positions
     command: -config.file=/etc/promtail/promtail.yml
     logging:
       driver: json-file
