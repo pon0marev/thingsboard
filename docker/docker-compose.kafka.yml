@@ -17,76 +17,133 @@
 version: '2.2'
 
 services:
-  kafka:
-    restart: always
-    image: "wurstmeister/kafka:2.13-2.6.0"
+  kowl:
+    image: quay.io/cloudhut/kowl:v1.4.0
+    restart: on-failure
+    hostname: kowl
+    volumes:
+    - ./kowl/config.yml:/etc/kowl/config.yml
     ports:
-      - "9092:9092"
-    env_file:
-      - kafka.env
+    - "8085:8080"
+    entrypoint: ./kowl --config.filepath=/etc/kowl/config.yml
     depends_on:
-      - zookeeper
+      - kafka1
+      - kafka2
+      - kafka3
+  kafka1:
+    restart: always
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    env_file:
+      - kafka1.env
+    depends_on:
+    - zookeeper
+
+  kafka2:
+    restart: always
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    env_file:
+      - kafka2.env
+    depends_on:
+    - zookeeper
+  kafka3:
+    restart: always
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    env_file:
+      - kafka3.env
+    depends_on:
+    - zookeeper
+
   tb-js-executor:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-core1:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
       - redis
   tb-core2:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
       - redis
   tb-rule-engine1:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
       - redis
   tb-rule-engine2:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
       - redis
   tb-mqtt-transport1:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-mqtt-transport2:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-http-transport1:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-http-transport2:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-coap-transport:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-lwm2m-transport:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
   tb-snmp-transport:
     env_file:
       - queue-kafka.env
     depends_on:
-      - kafka
+      - kafka1
+      - kafka2
+      - kafka3
