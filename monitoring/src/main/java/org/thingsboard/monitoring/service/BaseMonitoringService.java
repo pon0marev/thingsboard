@@ -30,6 +30,7 @@ import org.thingsboard.monitoring.config.MonitoringTarget;
 import org.thingsboard.monitoring.data.Latencies;
 import org.thingsboard.monitoring.data.MonitoredServiceKey;
 import org.thingsboard.monitoring.data.ServiceFailureException;
+import org.thingsboard.monitoring.metrics.ProbeMetricsRecorder;
 import org.thingsboard.monitoring.util.TbStopWatch;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.page.PageData;
@@ -77,6 +78,8 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
     @Autowired
     private MonitoringReporter reporter;
     @Autowired
+    private ProbeMetricsRecorder probeMetricsRecorder;
+    @Autowired
     protected ApplicationContext applicationContext;
 
     @Value("${monitoring.edqs.enabled:false}")
@@ -119,22 +122,35 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
             log.info("Starting {}", getName());
 
             String accessToken;
+            boolean loginSuccess = false;
             try {
                 stopWatch.start();
                 accessToken = tbClient.logIn();
-                reporter.reportLatency(Latencies.LOG_IN, stopWatch.getTime());
+                long loginLatencyNanos = stopWatch.getTime();
+                reporter.reportLatency(Latencies.LOG_IN, loginLatencyNanos);
+                probeMetricsRecorder.recordActionDuration(MonitoredServiceKey.LOGIN, "request", loginLatencyNanos / 1_000_000);
                 reporter.serviceIsOk(MonitoredServiceKey.LOGIN);
+                loginSuccess = true;
             } catch (Exception e) {
                 reporter.serviceFailure(MonitoredServiceKey.LOGIN, e);
+                // transport checks never ran this cycle - without this, their gauges would keep
+                // reporting last cycle's (possibly healthy) value throughout the outage
+                clearTransportProbeMetrics();
                 return;
+            } finally {
+                probeMetricsRecorder.recordProbe(MonitoredServiceKey.LOGIN, loginSuccess);
             }
 
+            long wsStartNanos = System.nanoTime();
             WsClient wsClient;
             try {
                 wsClient = wsClientFactory.createClient(accessToken);
+                probeMetricsRecorder.recordActionDuration(MonitoredServiceKey.WS, "connect", (System.nanoTime() - wsStartNanos) / 1_000_000);
                 reporter.serviceIsOk(MonitoredServiceKey.WS_CONNECT);
             } catch (Exception e) {
                 reporter.serviceFailure(MonitoredServiceKey.WS_CONNECT, e);
+                probeMetricsRecorder.recordProbe(MonitoredServiceKey.WS, false);
+                clearTransportProbeMetrics();
                 return;
             }
 
@@ -142,10 +158,15 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                 try {
                     stopWatch.start();
                     ws.subscribeForTelemetry(devices, getTestTelemetryKeys()).waitForReply();
-                    reporter.reportLatency(Latencies.WS_SUBSCRIBE, stopWatch.getTime());
+                    long subscribeLatencyNanos = stopWatch.getTime();
+                    reporter.reportLatency(Latencies.WS_SUBSCRIBE, subscribeLatencyNanos);
+                    probeMetricsRecorder.recordActionDuration(MonitoredServiceKey.WS, "subscribe", subscribeLatencyNanos / 1_000_000);
                     reporter.serviceIsOk(MonitoredServiceKey.WS_SUBSCRIBE);
+                    probeMetricsRecorder.recordProbe(MonitoredServiceKey.WS, true);
                 } catch (Exception e) {
                     reporter.serviceFailure(MonitoredServiceKey.WS_SUBSCRIBE, e);
+                    probeMetricsRecorder.recordProbe(MonitoredServiceKey.WS, false);
+                    clearTransportProbeMetrics();
                     return;
                 }
 
@@ -174,7 +195,12 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
             log.debug("Finished {}", getName());
         } catch (ServiceFailureException e) {
             reporter.serviceFailure(e.getServiceKey(), e);
+            // an unexpected failure partway through (e.g. DNS resolution failing while resolving
+            // associate IPs, or a client failing to close) can leave some transports unchecked
+            // this cycle too - clear them the same as the earlier known short-circuit points
+            clearTransportProbeMetrics();
         } catch (Throwable error) {
+            clearTransportProbeMetrics();
             try {
                 reporter.serviceFailure(MonitoredServiceKey.GENERAL, error);
             } catch (Throwable reportError) {
@@ -202,6 +228,8 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
             }
             for (String url : prevAssociatedUrls) {
                 if (!associatedUrls.contains(url)) {
+                    // remove the metric before stopHealthChecker(), which can throw and skip everything after it
+                    probeMetricsRecorder.removeProbe(associates.get(url).getCachedInfo());
                     stopHealthChecker(healthChecker);
                     associates.remove(url);
                     changed = true;
@@ -263,6 +291,15 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
 
     private List<String> getTestTelemetryKeys() {
         return checkCalculatedFields ? List.of(TEST_TELEMETRY_KEY, TEST_CF_TELEMETRY_KEY) : List.of(TEST_TELEMETRY_KEY);
+    }
+
+    private void clearTransportProbeMetrics() {
+        healthCheckers.forEach(this::clearTransportProbeMetrics);
+    }
+
+    private void clearTransportProbeMetrics(BaseHealthChecker<C, T> healthChecker) {
+        probeMetricsRecorder.removeProbe(healthChecker.getCachedInfo());
+        healthChecker.getAssociates().values().forEach(this::clearTransportProbeMetrics);
     }
 
     private void stopHealthChecker(BaseHealthChecker<C, T> healthChecker) throws Exception {

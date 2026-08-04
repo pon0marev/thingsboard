@@ -28,6 +28,7 @@ import org.thingsboard.monitoring.config.MonitoringTarget;
 import org.thingsboard.monitoring.data.Latencies;
 import org.thingsboard.monitoring.data.MonitoredServiceKey;
 import org.thingsboard.monitoring.data.ServiceFailureException;
+import org.thingsboard.monitoring.metrics.ProbeMetricsRecorder;
 import org.thingsboard.monitoring.util.TbStopWatch;
 
 import java.util.HashMap;
@@ -50,6 +51,8 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
     @Autowired
     private MonitoringReporter reporter;
     @Autowired
+    private ProbeMetricsRecorder probeMetricsRecorder;
+    @Autowired
     private TbStopWatch stopWatch;
     @Value("${monitoring.check_timeout_ms}")
     private int resultCheckTimeoutMs;
@@ -65,10 +68,18 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
         info = getInfo();
     }
 
+    // the same value recordProbe(info, ...) was called with - callers needing to look up
+    // an already-tracked probe (e.g. to remove it) should use this instead of getInfo(),
+    // which recomputes a fresh, if equal, instance
+    Object getCachedInfo() {
+        return info;
+    }
+
     protected abstract void initialize();
 
     public final void check(WsClient wsClient) {
         log.debug("[{}] Checking", info);
+        boolean success = false;
         try {
             int expectedUpdatesCount = isCfMonitoringEnabled() ? 2 : 1;
             wsClient.registerWaitForUpdates(expectedUpdatesCount);
@@ -79,7 +90,9 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
                 initClient();
                 stopWatch.start();
                 sendTestPayload(testPayload);
-                reporter.reportLatency(Latencies.request(getKey()), stopWatch.getTime());
+                long requestLatencyNanos = stopWatch.getTime();
+                reporter.reportLatency(Latencies.request(getKey()), requestLatencyNanos);
+                probeMetricsRecorder.recordActionDuration(info, "request", requestLatencyNanos / 1_000_000);
                 log.trace("[{}] Sent test payload ({})", info, testPayload);
             } catch (Throwable e) {
                 throw new ServiceFailureException(info, e);
@@ -89,10 +102,13 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
             checkWsUpdates(wsClient, testValue);
 
             reporter.serviceIsOk(info);
+            success = true;
         } catch (ServiceFailureException e) {
             reporter.serviceFailure(e.getServiceKey(), e);
         } catch (Exception e) {
             reporter.serviceFailure(info, e);
+        } finally {
+            probeMetricsRecorder.recordProbe(info, success);
         }
 
         associates.values().forEach(healthChecker -> {
@@ -121,7 +137,9 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
                 throw new ServiceFailureException(info, "Was expecting calculated field value " + cfTestValue + " but got " + actualCfValue);
             }
         }
-        reporter.reportLatency(Latencies.wsUpdate(getKey()), stopWatch.getTime());
+        long wsUpdateLatencyNanos = stopWatch.getTime();
+        reporter.reportLatency(Latencies.wsUpdate(getKey()), wsUpdateLatencyNanos);
+        probeMetricsRecorder.recordActionDuration(info, "ws_update", wsUpdateLatencyNanos / 1_000_000);
     }
 
     protected abstract void initClient() throws Exception;
