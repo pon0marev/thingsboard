@@ -25,7 +25,6 @@ import org.thingsboard.monitoring.config.transport.TransportInfo;
 import org.thingsboard.monitoring.config.transport.TransportType;
 import org.thingsboard.monitoring.data.MonitoredServiceKey;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,14 +40,6 @@ public class ProbeMetricsRecorder {
     // per-action: tagged with "action" (e.g. "request"/"ws_update"/"connect"/"subscribe") in addition
     // to the base tags - there is no separate combined-total duration series
     public static final String PROBE_DURATION_METRIC = "probe_duration_ms";
-    private static final String LOGIN_PATH = "/api/auth/login";
-
-    private static final Map<String, Integer> DEFAULT_PORTS = Map.of(
-            "mqtt", 1883, "mqtts", 8883,
-            "coap", 5683, "coaps", 5684,
-            "http", 80, "https", 443,
-            "lwm2m", 5685
-    );
 
     private final MeterRegistry meterRegistry;
     private final boolean enabled;
@@ -77,26 +68,10 @@ public class ProbeMetricsRecorder {
         this.meterRegistry = meterRegistry;
         this.enabled = otlpEnabled || prometheusEnabled;
         this.domain = domain;
-        this.loginEndpoint = this.enabled ? tryResolveEndpoint("monitoring.rest.base_url", restBaseUrl, "login",
-                endpoint -> endpoint + LOGIN_PATH) : null;
-        this.wsEndpoint = this.enabled ? tryResolveEndpoint("monitoring.ws.base_url", wsBaseUrl, "ws",
+        this.loginEndpoint = this.enabled ? ProbeLabelResolver.tryResolveEndpoint("monitoring.rest.base_url", restBaseUrl, "login",
+                endpoint -> endpoint + ProbeLabelResolver.LOGIN_PATH) : null;
+        this.wsEndpoint = this.enabled ? ProbeLabelResolver.tryResolveEndpoint("monitoring.ws.base_url", wsBaseUrl, "ws",
                 Function.identity()) : null;
-    }
-
-    private static String tryResolveEndpoint(String configKey, String baseUrl, String probeName,
-                                              Function<String, String> postProcess) {
-        try {
-            URI uri = URI.create(baseUrl);
-            boolean secureScheme = "https".equalsIgnoreCase(uri.getScheme()) || "wss".equalsIgnoreCase(uri.getScheme());
-            return postProcess.apply(resolveHostPort(uri, secureScheme ? 443 : 80));
-        } catch (Exception e) {
-            // an invalid base URL must not fail the whole application context just because metrics
-            // export is enabled - fall back to no-op for this probe specifically (matching how any
-            // other resolution failure here is handled, per-call, in withTags)
-            log.warn("Failed to resolve endpoint from {} [{}] - \"{}\" probe metrics will not be recorded",
-                    configKey, baseUrl, probeName, e);
-            return null;
-        }
     }
 
     public void recordProbe(Object serviceKey, boolean success) {
@@ -175,55 +150,13 @@ public class ProbeMetricsRecorder {
         // reaches the target's mutable device/credentials) - the owning health checker calls this every
         // check cycle (as often as every 10s by default), so cache to skip re-parsing the URI each time
         return transportTagsCache.computeIfAbsent(TransportTagKey.of(info), key -> {
-            URI uri = URI.create(key.baseUrl());
-            String checkType = resolveCheckType(key.type(), uri);
-            String endpoint = resolveEndpoint(uri, checkType);
-            return baseTags(checkType, endpoint);
+            ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(key.type(), key.baseUrl());
+            return baseTags(labels.check(), labels.endpoint());
         });
     }
 
     private Tags baseTags(String check, String endpoint) {
         return Tags.of("domain", domain, "check", check, "endpoint", endpoint, "kind", "probe");
-    }
-
-    private static String resolveCheckType(TransportType type, URI uri) {
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        return switch (type) {
-            case MQTT -> "ssl".equals(scheme) ? "mqtts" : "mqtt";
-            case COAP -> "coaps".equals(scheme) ? "coaps" : "coap";
-            case HTTP -> "https".equals(scheme) ? "https" : "http";
-            case LWM2M -> "lwm2m";
-        };
-    }
-
-    private static String resolveEndpoint(URI uri, String checkType) {
-        return resolveHostPort(uri, DEFAULT_PORTS.get(checkType));
-    }
-
-    // URI.getHost()/getPort() return null/-1 for authorities Java doesn't consider valid hostnames
-    // (e.g. underscores in docker-compose service names, a common target naming convention) - fall
-    // back to parsing the authority component directly instead of silently losing the host.
-    private static String resolveHostPort(URI uri, int defaultPort) {
-        String host = uri.getHost();
-        int port = uri.getPort();
-        if (host == null) {
-            String authority = uri.getAuthority();
-            if (authority != null) {
-                String hostPort = authority.contains("@") ? authority.substring(authority.lastIndexOf('@') + 1) : authority;
-                int colonIdx = hostPort.lastIndexOf(':');
-                if (colonIdx != -1) {
-                    host = hostPort.substring(0, colonIdx);
-                    try {
-                        port = Integer.parseInt(hostPort.substring(colonIdx + 1));
-                    } catch (NumberFormatException e) {
-                        port = -1;
-                    }
-                } else {
-                    host = hostPort;
-                }
-            }
-        }
-        return host + ":" + (port != -1 ? port : defaultPort);
     }
 
     private void setGauge(String metricName, Tags tags, double value) {
