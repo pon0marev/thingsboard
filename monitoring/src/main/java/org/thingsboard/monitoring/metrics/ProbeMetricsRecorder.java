@@ -44,6 +44,7 @@ public class ProbeMetricsRecorder {
     private final MeterRegistry meterRegistry;
     private final boolean enabled;
     private final String domain;
+    private final String label;
     private final String loginEndpoint;
     private final String wsEndpoint;
 
@@ -64,10 +65,12 @@ public class ProbeMetricsRecorder {
                                  @Value("${monitoring.metrics.prometheus.enabled:false}") boolean prometheusEnabled,
                                  @Value("${monitoring.domain}") String domain,
                                  @Value("${monitoring.rest.base_url}") String restBaseUrl,
-                                 @Value("${monitoring.ws.base_url}") String wsBaseUrl) {
+                                 @Value("${monitoring.ws.base_url}") String wsBaseUrl,
+                                 @Value("${monitoring.label:}") String label) {
         this.meterRegistry = meterRegistry;
         this.enabled = otlpEnabled || prometheusEnabled;
         this.domain = domain;
+        this.label = label;
         this.loginEndpoint = this.enabled ? ProbeLabelResolver.tryResolveEndpoint("monitoring.rest.base_url", restBaseUrl, "login",
                 endpoint -> endpoint + ProbeLabelResolver.LOGIN_PATH) : null;
         this.wsEndpoint = this.enabled ? ProbeLabelResolver.tryResolveEndpoint("monitoring.ws.base_url", wsBaseUrl, "ws",
@@ -156,7 +159,7 @@ public class ProbeMetricsRecorder {
     }
 
     private Tags baseTags(String check, String endpoint) {
-        return Tags.of("domain", domain, "check", check, "endpoint", endpoint, "kind", "probe");
+        return Tags.of("domain", domain, "check", check, "endpoint", endpoint, "kind", "probe", "label", label);
     }
 
     private void setGauge(String metricName, Tags tags, double value) {

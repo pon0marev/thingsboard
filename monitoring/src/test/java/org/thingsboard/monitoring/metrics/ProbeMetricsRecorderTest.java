@@ -36,7 +36,7 @@ public class ProbeMetricsRecorderTest {
 
     private ProbeMetricsRecorder recorder(boolean enabled) {
         return new ProbeMetricsRecorder(registry, enabled, false, "acme.example.com",
-                "https://acme.example.com", "wss://acme.example.com");
+                "https://acme.example.com", "wss://acme.example.com", "acme-cluster-1");
     }
 
     private TransportInfo transportInfo(TransportType type, String baseUrl) {
@@ -307,7 +307,7 @@ public class ProbeMetricsRecorderTest {
     @Test
     public void disabled_invalidWsBaseUrl_doesNotThrowAtConstruction() {
         ProbeMetricsRecorder recorder = new ProbeMetricsRecorder(registry, false, false, "acme.example.com",
-                "https://acme.example.com", "not a valid uri");
+                "https://acme.example.com", "not a valid uri", "acme-cluster-1");
         recorder.recordProbe(MonitoredServiceKey.WS, true);
         assertThat(registry.getMeters()).isEmpty();
     }
@@ -316,7 +316,7 @@ public class ProbeMetricsRecorderTest {
     public void enabled_invalidWsBaseUrl_doesNotThrowAtConstruction_wsProbeSkipped() {
         // otlpEnabled=true so this recorder is "enabled" and would normally resolve wsEndpoint eagerly
         ProbeMetricsRecorder recorder = new ProbeMetricsRecorder(registry, true, false, "acme.example.com",
-                "https://acme.example.com", "not a valid uri");
+                "https://acme.example.com", "not a valid uri", "acme-cluster-1");
 
         recorder.recordProbe(MonitoredServiceKey.WS, true);
 
@@ -326,11 +326,32 @@ public class ProbeMetricsRecorderTest {
     @Test
     public void enabled_invalidRestBaseUrl_doesNotThrowAtConstruction_loginProbeSkipped() {
         ProbeMetricsRecorder recorder = new ProbeMetricsRecorder(registry, true, false, "acme.example.com",
-                "not a valid uri", "wss://acme.example.com");
+                "not a valid uri", "wss://acme.example.com", "acme-cluster-1");
 
         recorder.recordProbe(MonitoredServiceKey.LOGIN, true);
 
         assertThat(registry.getMeters()).isEmpty(); // login is skipped, but construction didn't throw
+    }
+
+    @Test
+    public void labelTag_appearsOnGeneratedMetrics() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        recorder.recordProbe(transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883"), true);
+
+        assertThat(registry.get("probe_success")
+                .tags("domain", "acme.example.com", "check", "mqtt", "label", "acme-cluster-1")
+                .gauge().value()).isEqualTo(1d);
+    }
+
+    @Test
+    public void emptyLabel_stillProducesEmptyStringTag() {
+        // as-is behavior, same as the other optional tags in this class - an unset env var
+        // becomes an empty string tag rather than omitting the label tag entirely
+        ProbeMetricsRecorder recorder = new ProbeMetricsRecorder(registry, true, false, "acme.example.com",
+                "https://acme.example.com", "wss://acme.example.com", "");
+        recorder.recordProbe(transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883"), true);
+
+        assertThat(registry.get("probe_success").tags("label", "").gauge().value()).isEqualTo(1d);
     }
 
 }
