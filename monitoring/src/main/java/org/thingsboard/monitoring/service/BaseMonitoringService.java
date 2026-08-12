@@ -118,6 +118,9 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
         if (healthCheckers.isEmpty()) {
             return;
         }
+        // how many healthCheckers completed check() this cycle - so an unexpected failure partway
+        // through the loop below only clears the ones not yet reached, not everyone's fresh data
+        int checkedCount = 0;
         try {
             log.info("Starting {}", getName());
 
@@ -176,6 +179,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
 
                 for (BaseHealthChecker<C, T> healthChecker : healthCheckers) {
                     check(healthChecker, ws);
+                    checkedCount++;
                 }
             }
 
@@ -199,12 +203,13 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
             log.debug("Finished {}", getName());
         } catch (ServiceFailureException e) {
             reporter.serviceFailure(e.getServiceKey(), e);
-            // an unexpected failure partway through (e.g. DNS resolution failing while resolving
-            // associate IPs, or a client failing to close) can leave some transports unchecked
-            // this cycle too - clear them the same as the earlier known short-circuit points
-            clearTransportProbeMetrics();
+            // clear only the healthCheckers this cycle didn't get to - the ones before checkedCount
+            // already have fresh data this cycle and must not be wiped
+            clearTransportProbeMetrics(checkedCount);
+            clearAcceptedProbeMetrics(checkedCount);
         } catch (Throwable error) {
-            clearTransportProbeMetrics();
+            clearTransportProbeMetrics(checkedCount);
+            clearAcceptedProbeMetrics(checkedCount);
             try {
                 reporter.serviceFailure(MonitoredServiceKey.GENERAL, error);
             } catch (Throwable reportError) {
@@ -301,7 +306,11 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
     }
 
     private void clearTransportProbeMetrics() {
-        healthCheckers.forEach(this::clearTransportProbeMetrics);
+        clearTransportProbeMetrics(0);
+    }
+
+    private void clearTransportProbeMetrics(int fromIndex) {
+        healthCheckers.subList(fromIndex, healthCheckers.size()).forEach(this::clearTransportProbeMetrics);
     }
 
     private void clearTransportProbeMetrics(BaseHealthChecker<C, T> healthChecker) {
@@ -309,16 +318,22 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
         healthChecker.getAssociates().values().forEach(this::clearTransportProbeMetrics);
     }
 
+    private void clearAcceptedProbeMetrics() {
+        clearAcceptedProbeMetrics(0);
+    }
+
+    private void clearAcceptedProbeMetrics(int fromIndex) {
+        healthCheckers.subList(fromIndex, healthCheckers.size()).forEach(this::clearAcceptedProbeMetrics);
+    }
+
     private void clearAcceptedProbeMetrics(BaseHealthChecker<C, T> healthChecker) {
         probeMetricsRecorder.removeAcceptedProbe(healthChecker.getCachedInfo());
         healthChecker.getAssociates().values().forEach(this::clearAcceptedProbeMetrics);
     }
 
+    // always runs (no metrics-export gate) - alerting on a transport-only outage during login/WS
+    // downtime must work on every deployment, not just ones with OTLP/Prometheus export enabled
     private void checkTransportsAccepted() {
-        if (!probeMetricsRecorder.isEnabled()) {
-            // metrics disabled (the default) - skip the network I/O, recordAcceptedProbe would no-op anyway
-            return;
-        }
         healthCheckers.forEach(healthChecker -> healthChecker.checkAccepted());
     }
 

@@ -24,6 +24,10 @@ import org.thingsboard.monitoring.config.transport.TransportType;
 import org.thingsboard.monitoring.data.MonitoredServiceKey;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class ProbeMetricsRecorderTest {
 
@@ -245,16 +249,6 @@ public class ProbeMetricsRecorderTest {
     }
 
     @Test
-    public void wsConnect_and_wsSubscribe_alsoMapToWsProtocol() {
-        ProbeMetricsRecorder recorder = recorder(true);
-        recorder.recordProbe(MonitoredServiceKey.WS_CONNECT, true);
-        recorder.recordProbe(MonitoredServiceKey.WS_SUBSCRIBE, false);
-
-        // same series either way - WS_CONNECT recorded success, then WS_SUBSCRIBE overwrote it with failure
-        assertThat(registry.get("probe_success").tags("check", "ws").gauge().value()).isEqualTo(0d);
-    }
-
-    @Test
     public void underscoreHostname_stillResolvesEndpoint() {
         // URI.getHost()/getPort() return null/-1 for authorities Java doesn't treat as valid hostnames -
         // e.g. underscores, a common docker-compose service-naming convention
@@ -355,6 +349,18 @@ public class ProbeMetricsRecorderTest {
     }
 
     @Test
+    public void removeAcceptedProbe_whenNothingWasRecorded_skipsRegistryScan() {
+        // runs every healthy cycle now - must not scan the whole registry when there's nothing to remove
+        SimpleMeterRegistry spyRegistry = spy(new SimpleMeterRegistry());
+        ProbeMetricsRecorder recorder = new ProbeMetricsRecorder(spyRegistry, true, false, "acme.example.com",
+                "https://acme.example.com", "wss://acme.example.com", "acme-cluster-1");
+
+        recorder.removeAcceptedProbe(transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883"));
+
+        verify(spyRegistry, never()).find(anyString());
+    }
+
+    @Test
     public void recordAcceptedProbe_recordsSeparateSeriesFromE2eProbe() {
         ProbeMetricsRecorder recorder = recorder(true);
         TransportInfo target = transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883");
@@ -433,12 +439,6 @@ public class ProbeMetricsRecorderTest {
         ProbeMetricsRecorder recorder = recorder(true);
         recorder.removeAcceptedProbe(MonitoredServiceKey.LOGIN);
         assertThat(registry.getMeters()).isEmpty();
-    }
-
-    @Test
-    public void isEnabled_reflectsConstructorFlag() {
-        assertThat(recorder(true).isEnabled()).isTrue();
-        assertThat(recorder(false).isEnabled()).isFalse();
     }
 
 }

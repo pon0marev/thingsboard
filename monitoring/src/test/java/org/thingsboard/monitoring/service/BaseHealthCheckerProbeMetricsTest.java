@@ -142,6 +142,26 @@ public class BaseHealthCheckerProbeMetricsTest {
     }
 
     @Test
+    public void checkAccepted_reportsServiceIsOkWhenSendSucceeds() {
+        // alerting must work here too, not just the metric - it's the only signal available
+        // for this transport while login/WS (and so the full check()) is down
+        checker.checkAccepted();
+
+        verify(reporter).serviceIsOk(eq(INFO));
+        verify(reporter, never()).serviceFailure(any(), any());
+    }
+
+    @Test
+    public void checkAccepted_reportsServiceFailureWhenSendThrows() {
+        checker.failOnSend = true;
+
+        checker.checkAccepted();
+
+        verify(reporter).serviceFailure(eq(INFO), any());
+        verify(reporter, never()).serviceIsOk(any());
+    }
+
+    @Test
     public void checkAccepted_neverWaitsForWsUpdate() {
         checker.checkAccepted();
 
@@ -151,6 +171,7 @@ public class BaseHealthCheckerProbeMetricsTest {
     @Test
     public void checkAccepted_alsoChecksAssociates() {
         StubHealthChecker associate = new StubHealthChecker(new StubConfig(), new StubTarget());
+        ReflectionTestUtils.setField(associate, "reporter", reporter);
         ReflectionTestUtils.setField(associate, "probeMetricsRecorder", probeMetricsRecorder);
         ReflectionTestUtils.invokeMethod(associate, "init");
         checker.getAssociates().put("associate-url", associate);
@@ -158,6 +179,7 @@ public class BaseHealthCheckerProbeMetricsTest {
         checker.checkAccepted();
 
         verify(probeMetricsRecorder, times(2)).recordAcceptedProbe(eq(INFO), eq(true));
+        verify(reporter, times(2)).serviceIsOk(eq(INFO));
     }
 
     private static class StubConfig implements MonitoringConfig<StubTarget> {

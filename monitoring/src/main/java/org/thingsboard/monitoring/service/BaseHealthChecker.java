@@ -117,17 +117,20 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
     }
 
     // unlike check(), doesn't wait for WS/core confirmation - true once the transport itself
-    // acknowledges the test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx). Not
-    // final: LwM2M overrides this as a no-op since its send() has no such acknowledgment.
+    // acknowledges the test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx). Drives
+    // both the metric and the same alerting (reporter.serviceIsOk/serviceFailure, keyed on info)
+    // that check() would have, so a transport-only outage still alerts while login/WS is down.
+    // Not final: LwM2M overrides this as a no-op since its send() has no such acknowledgment.
     protected void checkAccepted() {
         boolean success;
         try {
             initClient();
             sendTestPayload(createTestPayload(UUID.randomUUID().toString()));
+            reporter.serviceIsOk(info);
             success = true;
         } catch (Throwable e) {
+            reporter.serviceFailure(info, e);
             success = false;
-            log.debug("[{}] Transport did not accept test payload", info, e);
         }
         probeMetricsRecorder.recordAcceptedProbe(info, success);
         associates.values().forEach(healthChecker -> healthChecker.checkAccepted());

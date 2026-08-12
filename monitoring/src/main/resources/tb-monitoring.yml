@@ -124,6 +124,12 @@ monitoring:
     enabled: "${CALCULATED_FIELDS_MONITORING_ENABLED:true}"
 
   metrics:
+    # probe_success is tagged kind="probe" (full end-to-end check) or kind="accepted" (transport-only
+    # fallback, used only while login/WS is down - absent for LwM2M, which has no such fallback).
+    # During a login/WS outage, kind="probe" for transports goes ABSENT, not 0 - a consumer must
+    # treat missing data as down, and fall back to kind="accepted" for a weaker "transport is up" signal.
+    # The fallback also drives the same Slack/incident alerting as the full check, regardless of
+    # whether OTLP/Prometheus export below is enabled - only the metric depends on that.
     otlp:
       # Push probe_success/probe_duration_ms via OTLP/HTTP to an OTel Collector
       enabled: '${METRICS_OTLP_ENABLED:false}'

@@ -52,6 +52,7 @@ public class ProbeMetricsRecorder {
 
     private final Map<GaugeKey, AtomicReference<Double>> gaugeValues = new ConcurrentHashMap<>();
     private final Map<TransportTagKey, Tags> transportTagsCache = new ConcurrentHashMap<>();
+    private final Map<TransportTagKey, Tags> acceptedTagsCache = new ConcurrentHashMap<>();
     // detects two distinct probes resolving to the same label set (e.g. two targets sharing a
     // host:port but different queue) - the label taxonomy has no room for a disambiguating tag,
     // so surface the collision instead of letting one silently overwrite the other's gauge
@@ -129,8 +130,8 @@ public class ProbeMetricsRecorder {
         }
     }
 
-    // for a target that no longer needs the fallback signal (fresh E2E data, or the target's gone
-    // entirely) - removeProbe() alone leaves this series untouched, so permanent teardown calls both.
+    // removeProbe() alone doesn't touch this series - permanent teardown calls both. Doesn't evict
+    // acceptedTagsCache here since this runs every healthy cycle, which would defeat the cache.
     public void removeAcceptedProbe(Object serviceKey) {
         if (!enabled || !(serviceKey instanceof TransportInfo transportInfo)) {
             return;
@@ -140,10 +141,6 @@ public class ProbeMetricsRecorder {
         } catch (Exception e) {
             log.warn("Failed to remove accepted probe metric for [{}]", transportInfo, e);
         }
-    }
-
-    public boolean isEnabled() {
-        return enabled;
     }
 
     private void warnIfLabelCollision(Object serviceKey, Tags tags) {
@@ -174,29 +171,27 @@ public class ProbeMetricsRecorder {
             return transportTags(transportInfo);
         } else if (loginEndpoint != null && MonitoredServiceKey.LOGIN.equals(serviceKey)) {
             return baseTags("login", loginEndpoint, KIND_PROBE);
-        } else if (wsEndpoint != null && (MonitoredServiceKey.WS.equals(serviceKey)
-                || MonitoredServiceKey.WS_CONNECT.equals(serviceKey)
-                || MonitoredServiceKey.WS_SUBSCRIBE.equals(serviceKey))) {
+        } else if (wsEndpoint != null && MonitoredServiceKey.WS.equals(serviceKey)) {
             return baseTags("ws", wsEndpoint, KIND_PROBE);
         }
         return null;
     }
 
     private Tags transportTags(TransportInfo info) {
-        // keyed on type+baseUrl only (not the whole TransportInfo, whose equals/hashCode transitively
-        // reaches the target's mutable device/credentials) - the owning health checker calls this every
-        // check cycle (as often as every 10s by default), so cache to skip re-parsing the URI each time
-        return transportTagsCache.computeIfAbsent(TransportTagKey.of(info), key -> {
-            ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(key.type(), key.baseUrl());
-            return baseTags(labels.check(), labels.endpoint(), KIND_PROBE);
-        });
+        return cachedTags(transportTagsCache, info, KIND_PROBE);
     }
 
-    // not cached like transportTags() - runs far less often (only on the failure/recovery path),
-    // so the extra URI parse per call isn't worth a second cache
     private Tags acceptedTags(TransportInfo info) {
-        ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(info.getType(), info.getTarget().getBaseUrl());
-        return baseTags(labels.check(), labels.endpoint(), KIND_ACCEPTED);
+        return cachedTags(acceptedTagsCache, info, KIND_ACCEPTED);
+    }
+
+    // keyed on type+baseUrl, not the whole TransportInfo (its equals/hashCode reach mutable state) -
+    // cached since this runs every cycle per target and re-parsing the URL each time is wasted work
+    private Tags cachedTags(Map<TransportTagKey, Tags> cache, TransportInfo info, String kind) {
+        return cache.computeIfAbsent(TransportTagKey.of(info), key -> {
+            ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(key.type(), key.baseUrl());
+            return baseTags(labels.check(), labels.endpoint(), kind);
+        });
     }
 
     private Tags baseTags(String check, String endpoint, String kind) {
@@ -214,8 +209,10 @@ public class ProbeMetricsRecorder {
     }
 
     private void removeGauge(String metricName, Tags tags) {
-        meterRegistry.find(metricName).tags(tags).meters().forEach(meterRegistry::remove);
-        gaugeValues.remove(new GaugeKey(metricName, tags));
+        // skip find()'s full-registry scan when gaugeValues shows there's nothing to remove
+        if (gaugeValues.remove(new GaugeKey(metricName, tags)) != null) {
+            meterRegistry.find(metricName).tags(tags).meters().forEach(meterRegistry::remove);
+        }
     }
 
     private record GaugeKey(String metricName, Tags tags) {

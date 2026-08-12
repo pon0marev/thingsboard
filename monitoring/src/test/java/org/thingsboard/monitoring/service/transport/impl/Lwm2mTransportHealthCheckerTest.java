@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.thingsboard.monitoring.config.transport.Lwm2mTransportMonitoringConfig;
 import org.thingsboard.monitoring.config.transport.TransportMonitoringTarget;
 import org.thingsboard.monitoring.metrics.ProbeMetricsRecorder;
+import org.thingsboard.monitoring.service.MonitoringReporter;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -27,16 +28,19 @@ import static org.mockito.Mockito.verifyNoInteractions;
 public class Lwm2mTransportHealthCheckerTest {
 
     @Test
-    public void checkAccepted_isNoOp_neverRecordsAcceptedProbe() {
-        // checkAccepted() is a no-op for LwM2M (see override) - must never call recordAcceptedProbe
+    public void checkAccepted_isNoOp_neverRecordsAcceptedProbeOrReports() {
+        // checkAccepted() is a no-op for LwM2M (see override) - must never touch the metric or alerting
         ProbeMetricsRecorder probeMetricsRecorder = mock(ProbeMetricsRecorder.class);
+        MonitoringReporter reporter = mock(MonitoringReporter.class);
         Lwm2mTransportHealthChecker checker = new Lwm2mTransportHealthChecker(
                 new Lwm2mTransportMonitoringConfig(), new TransportMonitoringTarget());
         ReflectionTestUtils.setField(checker, "probeMetricsRecorder", probeMetricsRecorder);
+        ReflectionTestUtils.setField(checker, "reporter", reporter);
 
         checker.checkAccepted();
 
         verifyNoInteractions(probeMetricsRecorder);
+        verifyNoInteractions(reporter);
     }
 
 }

@@ -23,8 +23,8 @@ import org.thingsboard.monitoring.client.WsClient;
 import org.thingsboard.monitoring.client.WsClientFactory;
 import org.thingsboard.monitoring.config.transport.TransportMonitoringConfig;
 import org.thingsboard.monitoring.config.transport.TransportMonitoringTarget;
-import org.thingsboard.monitoring.config.transport.TransportType;
 import org.thingsboard.monitoring.data.MonitoredServiceKey;
+import org.thingsboard.monitoring.data.ServiceFailureException;
 import org.thingsboard.monitoring.metrics.ProbeMetricsRecorder;
 import org.thingsboard.monitoring.util.TbStopWatch;
 
@@ -33,6 +33,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -55,8 +56,6 @@ public class BaseMonitoringServiceProbeMetricsTest {
         wsClientFactory = mock(WsClientFactory.class);
         reporter = mock(MonitoringReporter.class);
         probeMetricsRecorder = mock(ProbeMetricsRecorder.class);
-        // enabled by default so checkAccepted() keeps firing below; the disabled-guard test overrides this
-        when(probeMetricsRecorder.isEnabled()).thenReturn(true);
         wsClient = mock(WsClient.class);
         when(wsClient.subscribeForTelemetry(any(), any())).thenReturn(wsClient);
 
@@ -302,15 +301,63 @@ public class BaseMonitoringServiceProbeMetricsTest {
     }
 
     @Test
-    public void metricsDisabled_loginFailure_neverChecksTransportAcceptance() throws Exception {
-        // checkTransportsAccepted's guard is shared code - one failure branch is enough to cover all 3
-        when(probeMetricsRecorder.isEnabled()).thenReturn(false);
-        when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
+    public void unexpectedServiceFailureMidLoop_alsoClearsAcceptedProbeMetrics() throws Exception {
+        // caught by the outer handler, not the 3 known branches - must still clear kind="accepted"
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+        doThrow(new ServiceFailureException(MonitoredServiceKey.GENERAL, new RuntimeException("boom")))
+                .when(healthChecker).check(any());
 
         service.runChecks();
 
-        verify(healthChecker, never()).checkAccepted();
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(any());
     }
+
+    @Test
+    public void unexpectedThrowableMidLoop_alsoClearsAcceptedProbeMetrics() throws Exception {
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+        doThrow(new RuntimeException("boom")).when(healthChecker).check(any());
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(any());
+    }
+
+    @Test
+    public void unexpectedThrowableMidLoop_doesNotClearAlreadyCheckedTargets() throws Exception {
+        // a target checked earlier in this same cycle already has fresh data - the outer catch
+        // must only clear targets after the one that failed, not everyone from the start
+        Object firstInfo = new Object();
+        when(healthChecker.getCachedInfo()).thenReturn(firstInfo);
+
+        BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget> secondChecker = mock(BaseHealthChecker.class);
+        TransportMonitoringTarget secondTarget = new TransportMonitoringTarget();
+        secondTarget.setCheckDomainIps(false);
+        when(secondChecker.getTarget()).thenReturn(secondTarget);
+        Object secondInfo = new Object();
+        when(secondChecker.getCachedInfo()).thenReturn(secondInfo);
+        doThrow(new RuntimeException("boom")).when(secondChecker).check(any());
+        List<BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget>> healthCheckers =
+                (List) ReflectionTestUtils.getField(service, "healthCheckers");
+        healthCheckers.add(secondChecker);
+
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+
+        service.runChecks();
+
+        // called once, by the normal success path only - not a second time by the outer catch
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(firstInfo);
+        verify(probeMetricsRecorder, never()).removeProbe(firstInfo);
+        // the target that never got checked this cycle is cleared by the outer catch
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(secondInfo);
+        verify(probeMetricsRecorder, times(1)).removeProbe(secondInfo);
+    }
+
 
     private static class TestMonitoringService extends BaseMonitoringService<TransportMonitoringConfig, TransportMonitoringTarget> {
         @Override
