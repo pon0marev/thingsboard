@@ -394,9 +394,7 @@ public class ProbeMetricsRecorderTest {
 
     @Test
     public void removeProbe_noLongerRemovesAcceptedGauge() {
-        // removeProbe is now for the "not checked this cycle" case (login/WS failure), where the
-        // accepted fallback is about to run and must keep reporting - only removeAcceptedProbe
-        // (or removing both explicitly, for permanent teardown) should ever touch kind="accepted"
+        // removeProbe() no longer touches kind="accepted" - only removeAcceptedProbe() does
         ProbeMetricsRecorder recorder = recorder(true);
         TransportInfo target = transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883");
         recorder.recordProbe(target, true);

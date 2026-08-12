@@ -55,8 +55,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
         wsClientFactory = mock(WsClientFactory.class);
         reporter = mock(MonitoringReporter.class);
         probeMetricsRecorder = mock(ProbeMetricsRecorder.class);
-        // enabled by default so the existing checkAccepted()-fires assertions below keep exercising
-        // the fallback path itself; the disabled-guard behavior gets its own test that overrides this
+        // enabled by default so checkAccepted() keeps firing below; the disabled-guard test overrides this
         when(probeMetricsRecorder.isEnabled()).thenReturn(true);
         wsClient = mock(WsClient.class);
         when(wsClient.subscribeForTelemetry(any(), any())).thenReturn(wsClient);
@@ -146,8 +145,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
 
     @Test
     public void loginFailure_neverRemovesAcceptedProbeBeforeFallbackRuns() throws Exception {
-        // removeAcceptedProbe must never race with/precede the fallback check on the failure
-        // path - only the success path (per-target, once its fresh E2E result is in) calls it
+        // removeAcceptedProbe must never precede the fallback check on the failure path
         when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
 
         service.runChecks();
@@ -263,8 +261,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
 
     @Test
     public void successfulRun_neverChecksTransportAcceptance() throws Exception {
-        // WS is healthy, so the full E2E check already covers this target - checkAccepted() must
-        // not also fire, or every healthy cycle would send two test payloads instead of one
+        // WS is healthy, so E2E already covers this target - checkAccepted() firing too would double-send
         when(tbClient.logIn()).thenReturn("token");
         when(wsClientFactory.createClient("token")).thenReturn(wsClient);
         when(wsClient.waitForReply()).thenReturn(null);
@@ -276,8 +273,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
 
     @Test
     public void successfulRun_removesAcceptedProbeForEachHealthChecker() throws Exception {
-        // the E2E check just produced fresh data for this target, so any stale accepted-fallback
-        // gauge from an earlier outage cycle must be cleared now rather than freezing forever
+        // fresh E2E data means any stale accepted-fallback value must be cleared, not frozen forever
         when(tbClient.logIn()).thenReturn("token");
         when(wsClientFactory.createClient("token")).thenReturn(wsClient);
         when(wsClient.waitForReply()).thenReturn(null);
@@ -289,9 +285,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
 
     @Test
     public void successfulRun_removesAcceptedProbeForAssociatesToo() throws Exception {
-        // associates (DNS-resolved IPs of the same target) get their own kind="accepted" gauge via
-        // BaseHealthChecker.checkAccepted()'s own recursion during an outage - the recovery-time
-        // clear must recurse the same way, or an associate's gauge freezes forever once set
+        // associates get their own kind="accepted" gauge during an outage too - recovery must clear it
         BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget> associate =
                 mock(BaseHealthChecker.class);
         Object associateInfo = new Object();
@@ -309,9 +303,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
 
     @Test
     public void metricsDisabled_loginFailure_neverChecksTransportAcceptance() throws Exception {
-        // recordAcceptedProbe would no-op anyway when metrics export is disabled (the default) -
-        // checkTransportsAccepted's guard is shared code, so this one representative failure
-        // branch is enough to cover all 3 call sites
+        // checkTransportsAccepted's guard is shared code - one failure branch is enough to cover all 3
         when(probeMetricsRecorder.isEnabled()).thenReturn(false);
         when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
 

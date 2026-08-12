@@ -136,8 +136,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                 // transport checks never ran this cycle - without this, their gauges would keep
                 // reporting last cycle's (possibly healthy) value throughout the outage
                 clearTransportProbeMetrics();
-                // login is down, so the full E2E check below can't run - fall back to a
-                // WS-independent "did the transport at least accept a message" signal
+                // E2E check can't run without login - fall back to the WS-independent signal
                 checkTransportsAccepted();
                 return;
             } finally {
@@ -216,9 +215,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
 
     private void check(BaseHealthChecker<C, T> healthChecker, WsClient wsClient) throws Exception {
         healthChecker.check(wsClient);
-        // the E2E check just ran (successfully or not) for this target and its associates, so it's
-        // the authoritative signal again - clear any stale accepted-fallback value from an earlier
-        // outage cycle
+        // fresh E2E data is authoritative again - clear any stale accepted-fallback value
         clearAcceptedProbeMetrics(healthChecker);
 
         T target = healthChecker.getTarget();
@@ -319,8 +316,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
 
     private void checkTransportsAccepted() {
         if (!probeMetricsRecorder.isEnabled()) {
-            // recordAcceptedProbe would no-op anyway, so skip the real network I/O the checks
-            // would otherwise perform on every default-configured (metrics-disabled) deployment
+            // metrics disabled (the default) - skip the network I/O, recordAcceptedProbe would no-op anyway
             return;
         }
         healthCheckers.forEach(healthChecker -> healthChecker.checkAccepted());

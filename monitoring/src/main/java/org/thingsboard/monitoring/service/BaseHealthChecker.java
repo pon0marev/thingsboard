@@ -116,13 +116,9 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
         });
     }
 
-    // independent of check()/the shared WS session - true when the transport itself acknowledged
-    // a fresh test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx). Does not wait for
-    // WS confirmation, so it still gives a signal when login/WS is unavailable (e.g. a core-only
-    // outage in a microservice deployment) - see BaseMonitoringService's login/WS failure branches,
-    // the only place this is currently called from. Not final: Lwm2mTransportHealthChecker
-    // overrides it as a no-op (its sendTestPayload doesn't wait for any server acknowledgment, so
-    // this check can't produce a meaningful signal for that transport).
+    // unlike check(), doesn't wait for WS/core confirmation - true once the transport itself
+    // acknowledges the test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx). Not
+    // final: LwM2M overrides this as a no-op since its send() has no such acknowledgment.
     protected void checkAccepted() {
         boolean success;
         try {

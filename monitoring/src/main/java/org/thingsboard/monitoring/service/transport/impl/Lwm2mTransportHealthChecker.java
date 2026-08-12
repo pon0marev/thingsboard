@@ -53,9 +53,8 @@ public class Lwm2mTransportHealthChecker extends TransportHealthChecker<Lwm2mTra
 
     @Override
     protected void checkAccepted() {
-        // sendTestPayload() (Lwm2mClient.send()) never waits for any server acknowledgment - it
-        // only fires a local Leshan resource-change event - so this check can't produce a
-        // meaningful signal for LwM2M. No-op rather than a check that always reports "success".
+        // send() never waits for a server ack (just fires a local Leshan event), so this can't
+        // produce a meaningful signal for LwM2M - no-op rather than always reporting "success".
     }
 
     @Override

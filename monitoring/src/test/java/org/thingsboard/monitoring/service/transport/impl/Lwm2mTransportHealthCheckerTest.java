@@ -28,9 +28,7 @@ public class Lwm2mTransportHealthCheckerTest {
 
     @Test
     public void checkAccepted_isNoOp_neverRecordsAcceptedProbe() {
-        // sendTestPayload() (Lwm2mClient.send()) never waits for any server acknowledgment, so
-        // checkAccepted() is overridden as a no-op for LwM2M - it must never call
-        // recordAcceptedProbe (which would otherwise report a misleading always-1 "accepted" signal)
+        // checkAccepted() is a no-op for LwM2M (see override) - must never call recordAcceptedProbe
         ProbeMetricsRecorder probeMetricsRecorder = mock(ProbeMetricsRecorder.class);
         Lwm2mTransportHealthChecker checker = new Lwm2mTransportHealthChecker(
                 new Lwm2mTransportMonitoringConfig(), new TransportMonitoringTarget());

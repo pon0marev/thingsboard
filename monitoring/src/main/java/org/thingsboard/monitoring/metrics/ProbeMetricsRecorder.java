@@ -124,16 +124,13 @@ public class ProbeMetricsRecorder {
             warnedCollisions.remove(tags);
         });
         if (serviceKey instanceof TransportInfo transportInfo) {
-            // otherwise this cache leaks the same way the gauges just did - removeAcceptedProbe
-            // doesn't repeat this, since it's only ever called alongside removeProbe (permanent
-            // teardown) or on its own (fresh E2E data superseded it) and either way this is enough
+            // otherwise this cache leaks the same way the gauges just did
             transportTagsCache.remove(TransportTagKey.of(transportInfo));
         }
     }
 
-    // for a target that is going away permanently (e.g. an IP-based associate dropped from DNS) -
-    // removes both series so neither leaks a stale value. For the "no longer running this cycle"
-    // case (login/WS failure), use removeProbe alone - see BaseMonitoringService.
+    // for a target that no longer needs the fallback signal (fresh E2E data, or the target's gone
+    // entirely) - removeProbe() alone leaves this series untouched, so permanent teardown calls both.
     public void removeAcceptedProbe(Object serviceKey) {
         if (!enabled || !(serviceKey instanceof TransportInfo transportInfo)) {
             return;
@@ -195,9 +192,8 @@ public class ProbeMetricsRecorder {
         });
     }
 
-    // not cached like transportTags() - recordAcceptedProbe/removeProbe's accepted-metric cleanup
-    // run far less often than the main per-cycle E2E check, so the extra URI parse per call isn't
-    // worth a second cache alongside transportTagsCache
+    // not cached like transportTags() - runs far less often (only on the failure/recovery path),
+    // so the extra URI parse per call isn't worth a second cache
     private Tags acceptedTags(TransportInfo info) {
         ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(info.getType(), info.getTarget().getBaseUrl());
         return baseTags(labels.check(), labels.endpoint(), KIND_ACCEPTED);
