@@ -34,7 +34,9 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class BaseHealthCheckerProbeMetricsTest {
@@ -121,6 +123,41 @@ public class BaseHealthCheckerProbeMetricsTest {
 
         verify(probeMetricsRecorder).recordActionDuration(eq(INFO), eq("request"), anyLong());
         verify(probeMetricsRecorder, never()).recordActionDuration(eq(INFO), eq("ws_update"), anyLong());
+    }
+
+    @Test
+    public void checkAccepted_recordsSuccessWhenSendSucceeds() {
+        checker.checkAccepted();
+
+        verify(probeMetricsRecorder).recordAcceptedProbe(eq(INFO), eq(true));
+    }
+
+    @Test
+    public void checkAccepted_recordsFailureWhenSendThrows() {
+        checker.failOnSend = true;
+
+        checker.checkAccepted();
+
+        verify(probeMetricsRecorder).recordAcceptedProbe(eq(INFO), eq(false));
+    }
+
+    @Test
+    public void checkAccepted_neverWaitsForWsUpdate() {
+        checker.checkAccepted();
+
+        verifyNoInteractions(wsClient);
+    }
+
+    @Test
+    public void checkAccepted_alsoChecksAssociates() {
+        StubHealthChecker associate = new StubHealthChecker(new StubConfig(), new StubTarget());
+        ReflectionTestUtils.setField(associate, "probeMetricsRecorder", probeMetricsRecorder);
+        ReflectionTestUtils.invokeMethod(associate, "init");
+        checker.getAssociates().put("associate-url", associate);
+
+        checker.checkAccepted();
+
+        verify(probeMetricsRecorder, times(2)).recordAcceptedProbe(eq(INFO), eq(true));
     }
 
     private static class StubConfig implements MonitoringConfig<StubTarget> {

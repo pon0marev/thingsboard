@@ -40,6 +40,8 @@ public class ProbeMetricsRecorder {
     // per-action: tagged with "action" (e.g. "request"/"ws_update"/"connect"/"subscribe") in addition
     // to the base tags - there is no separate combined-total duration series
     public static final String PROBE_DURATION_METRIC = "probe_duration_ms";
+    private static final String KIND_PROBE = "probe";
+    private static final String KIND_ACCEPTED = "accepted";
 
     private final MeterRegistry meterRegistry;
     private final boolean enabled;
@@ -93,6 +95,21 @@ public class ProbeMetricsRecorder {
         });
     }
 
+    // independent of recordProbe/the shared login+WS session - true when the transport itself
+    // acknowledged a test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx), regardless
+    // of whether the message could also be confirmed end-to-end via the WS subscription. Only
+    // applies to transport checks (TransportInfo keys) - anything else is ignored.
+    public void recordAcceptedProbe(Object serviceKey, boolean success) {
+        if (!enabled || !(serviceKey instanceof TransportInfo transportInfo)) {
+            return;
+        }
+        try {
+            setGauge(PROBE_SUCCESS_METRIC, acceptedTags(transportInfo), success ? 1d : 0d);
+        } catch (Exception e) {
+            log.warn("Failed to record accepted probe metric for [{}]", serviceKey, e);
+        }
+    }
+
     // for probes whose target is no longer being checked this cycle - either permanently (e.g. an
     // IP-based associate dropped from DNS) or transiently (e.g. login failed, so no transport check
     // ran) - without this, the gauge keeps exporting its last value regardless
@@ -107,9 +124,29 @@ public class ProbeMetricsRecorder {
             warnedCollisions.remove(tags);
         });
         if (serviceKey instanceof TransportInfo transportInfo) {
-            // otherwise this cache leaks the same way the gauges just did
+            // otherwise this cache leaks the same way the gauges just did - removeAcceptedProbe
+            // doesn't repeat this, since it's only ever called alongside removeProbe (permanent
+            // teardown) or on its own (fresh E2E data superseded it) and either way this is enough
             transportTagsCache.remove(TransportTagKey.of(transportInfo));
         }
+    }
+
+    // for a target that is going away permanently (e.g. an IP-based associate dropped from DNS) -
+    // removes both series so neither leaks a stale value. For the "no longer running this cycle"
+    // case (login/WS failure), use removeProbe alone - see BaseMonitoringService.
+    public void removeAcceptedProbe(Object serviceKey) {
+        if (!enabled || !(serviceKey instanceof TransportInfo transportInfo)) {
+            return;
+        }
+        try {
+            removeGauge(PROBE_SUCCESS_METRIC, acceptedTags(transportInfo));
+        } catch (Exception e) {
+            log.warn("Failed to remove accepted probe metric for [{}]", transportInfo, e);
+        }
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     private void warnIfLabelCollision(Object serviceKey, Tags tags) {
@@ -139,11 +176,11 @@ public class ProbeMetricsRecorder {
         if (serviceKey instanceof TransportInfo transportInfo) {
             return transportTags(transportInfo);
         } else if (loginEndpoint != null && MonitoredServiceKey.LOGIN.equals(serviceKey)) {
-            return baseTags("login", loginEndpoint);
+            return baseTags("login", loginEndpoint, KIND_PROBE);
         } else if (wsEndpoint != null && (MonitoredServiceKey.WS.equals(serviceKey)
                 || MonitoredServiceKey.WS_CONNECT.equals(serviceKey)
                 || MonitoredServiceKey.WS_SUBSCRIBE.equals(serviceKey))) {
-            return baseTags("ws", wsEndpoint);
+            return baseTags("ws", wsEndpoint, KIND_PROBE);
         }
         return null;
     }
@@ -154,12 +191,20 @@ public class ProbeMetricsRecorder {
         // check cycle (as often as every 10s by default), so cache to skip re-parsing the URI each time
         return transportTagsCache.computeIfAbsent(TransportTagKey.of(info), key -> {
             ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(key.type(), key.baseUrl());
-            return baseTags(labels.check(), labels.endpoint());
+            return baseTags(labels.check(), labels.endpoint(), KIND_PROBE);
         });
     }
 
-    private Tags baseTags(String check, String endpoint) {
-        return Tags.of("domain", domain, "check", check, "endpoint", endpoint, "kind", "probe", "label", label);
+    // not cached like transportTags() - recordAcceptedProbe/removeProbe's accepted-metric cleanup
+    // run far less often than the main per-cycle E2E check, so the extra URI parse per call isn't
+    // worth a second cache alongside transportTagsCache
+    private Tags acceptedTags(TransportInfo info) {
+        ProbeLabelResolver.ProbeLabels labels = ProbeLabelResolver.resolveTransportLabels(info.getType(), info.getTarget().getBaseUrl());
+        return baseTags(labels.check(), labels.endpoint(), KIND_ACCEPTED);
+    }
+
+    private Tags baseTags(String check, String endpoint, String kind) {
+        return Tags.of("domain", domain, "check", check, "endpoint", endpoint, "kind", kind, "label", label);
     }
 
     private void setGauge(String metricName, Tags tags, double value) {

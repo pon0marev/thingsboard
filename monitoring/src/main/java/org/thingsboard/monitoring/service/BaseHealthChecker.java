@@ -116,6 +116,27 @@ public abstract class BaseHealthChecker<C extends MonitoringConfig, T extends Mo
         });
     }
 
+    // independent of check()/the shared WS session - true when the transport itself acknowledged
+    // a fresh test message (e.g. MQTT PUBACK, CoAP success response, HTTP 2xx). Does not wait for
+    // WS confirmation, so it still gives a signal when login/WS is unavailable (e.g. a core-only
+    // outage in a microservice deployment) - see BaseMonitoringService's login/WS failure branches,
+    // the only place this is currently called from. Not final: Lwm2mTransportHealthChecker
+    // overrides it as a no-op (its sendTestPayload doesn't wait for any server acknowledgment, so
+    // this check can't produce a meaningful signal for that transport).
+    protected void checkAccepted() {
+        boolean success;
+        try {
+            initClient();
+            sendTestPayload(createTestPayload(UUID.randomUUID().toString()));
+            success = true;
+        } catch (Throwable e) {
+            success = false;
+            log.debug("[{}] Transport did not accept test payload", info, e);
+        }
+        probeMetricsRecorder.recordAcceptedProbe(info, success);
+        associates.values().forEach(healthChecker -> healthChecker.checkAccepted());
+    }
+
     private void checkWsUpdates(WsClient wsClient, String testValue) {
         stopWatch.start();
         wsClient.waitForUpdates(resultCheckTimeoutMs);

@@ -354,4 +354,93 @@ public class ProbeMetricsRecorderTest {
         assertThat(registry.get("probe_success").tags("label", "").gauge().value()).isEqualTo(1d);
     }
 
+    @Test
+    public void recordAcceptedProbe_recordsSeparateSeriesFromE2eProbe() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        TransportInfo target = transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883");
+        recorder.recordProbe(target, true);
+        recorder.recordAcceptedProbe(target, false);
+
+        assertThat(registry.get("probe_success").tags("kind", "probe").gauge().value()).isEqualTo(1d);
+        assertThat(registry.get("probe_success").tags("kind", "accepted").gauge().value()).isEqualTo(0d);
+        assertThat(registry.getMeters()).hasSize(2); // two distinct series, no collision
+    }
+
+    @Test
+    public void recordAcceptedProbe_usesSameLabelResolutionAsE2eProbe() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        recorder.recordAcceptedProbe(transportInfo(TransportType.MQTT, "ssl://acme.example.com:8883"), true);
+
+        assertThat(registry.get("probe_success")
+                .tags("domain", "acme.example.com", "check", "mqtts", "endpoint", "acme.example.com:8883",
+                        "kind", "accepted", "label", "acme-cluster-1")
+                .gauge().value()).isEqualTo(1d);
+    }
+
+    @Test
+    public void recordAcceptedProbe_whenDisabled_isNoOp() {
+        ProbeMetricsRecorder recorder = recorder(false);
+        recorder.recordAcceptedProbe(transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883"), true);
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    public void recordAcceptedProbe_ignoresNonTransportServiceKeys() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        recorder.recordAcceptedProbe(MonitoredServiceKey.LOGIN, true);
+        recorder.recordAcceptedProbe(MonitoredServiceKey.WS, true);
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    public void removeProbe_noLongerRemovesAcceptedGauge() {
+        // removeProbe is now for the "not checked this cycle" case (login/WS failure), where the
+        // accepted fallback is about to run and must keep reporting - only removeAcceptedProbe
+        // (or removing both explicitly, for permanent teardown) should ever touch kind="accepted"
+        ProbeMetricsRecorder recorder = recorder(true);
+        TransportInfo target = transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883");
+        recorder.recordProbe(target, true);
+        recorder.recordAcceptedProbe(target, true);
+        assertThat(registry.getMeters()).hasSize(2);
+
+        recorder.removeProbe(target);
+
+        assertThat(registry.getMeters()).hasSize(1);
+        assertThat(registry.get("probe_success").tags("kind", "accepted").gauge().value()).isEqualTo(1d);
+    }
+
+    @Test
+    public void removeAcceptedProbe_removesOnlyAcceptedGauge_leavesProbeGaugeUntouched() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        TransportInfo target = transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883");
+        recorder.recordProbe(target, true);
+        recorder.recordAcceptedProbe(target, true);
+        assertThat(registry.getMeters()).hasSize(2);
+
+        recorder.removeAcceptedProbe(target);
+
+        assertThat(registry.getMeters()).hasSize(1);
+        assertThat(registry.get("probe_success").tags("kind", "probe").gauge().value()).isEqualTo(1d);
+    }
+
+    @Test
+    public void removeAcceptedProbe_whenDisabled_isNoOp() {
+        ProbeMetricsRecorder recorder = recorder(false);
+        recorder.removeAcceptedProbe(transportInfo(TransportType.MQTT, "tcp://acme.example.com:1883"));
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    public void removeAcceptedProbe_ignoresNonTransportServiceKeys() {
+        ProbeMetricsRecorder recorder = recorder(true);
+        recorder.removeAcceptedProbe(MonitoredServiceKey.LOGIN);
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    public void isEnabled_reflectsConstructorFlag() {
+        assertThat(recorder(true).isEnabled()).isTrue();
+        assertThat(recorder(false).isEnabled()).isFalse();
+    }
+
 }

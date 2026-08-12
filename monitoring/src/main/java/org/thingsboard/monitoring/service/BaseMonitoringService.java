@@ -136,6 +136,9 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                 // transport checks never ran this cycle - without this, their gauges would keep
                 // reporting last cycle's (possibly healthy) value throughout the outage
                 clearTransportProbeMetrics();
+                // login is down, so the full E2E check below can't run - fall back to a
+                // WS-independent "did the transport at least accept a message" signal
+                checkTransportsAccepted();
                 return;
             } finally {
                 probeMetricsRecorder.recordProbe(MonitoredServiceKey.LOGIN, loginSuccess);
@@ -151,6 +154,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                 reporter.serviceFailure(MonitoredServiceKey.WS_CONNECT, e);
                 probeMetricsRecorder.recordProbe(MonitoredServiceKey.WS, false);
                 clearTransportProbeMetrics();
+                checkTransportsAccepted();
                 return;
             }
 
@@ -167,6 +171,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                     reporter.serviceFailure(MonitoredServiceKey.WS_SUBSCRIBE, e);
                     probeMetricsRecorder.recordProbe(MonitoredServiceKey.WS, false);
                     clearTransportProbeMetrics();
+                    checkTransportsAccepted();
                     return;
                 }
 
@@ -211,6 +216,10 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
 
     private void check(BaseHealthChecker<C, T> healthChecker, WsClient wsClient) throws Exception {
         healthChecker.check(wsClient);
+        // the E2E check just ran (successfully or not) for this target and its associates, so it's
+        // the authoritative signal again - clear any stale accepted-fallback value from an earlier
+        // outage cycle
+        clearAcceptedProbeMetrics(healthChecker);
 
         T target = healthChecker.getTarget();
         if (target.isCheckDomainIps()) {
@@ -230,6 +239,7 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
                 if (!associatedUrls.contains(url)) {
                     // remove the metric before stopHealthChecker(), which can throw and skip everything after it
                     probeMetricsRecorder.removeProbe(associates.get(url).getCachedInfo());
+                    probeMetricsRecorder.removeAcceptedProbe(associates.get(url).getCachedInfo());
                     stopHealthChecker(healthChecker);
                     associates.remove(url);
                     changed = true;
@@ -300,6 +310,20 @@ public abstract class BaseMonitoringService<C extends MonitoringConfig<T>, T ext
     private void clearTransportProbeMetrics(BaseHealthChecker<C, T> healthChecker) {
         probeMetricsRecorder.removeProbe(healthChecker.getCachedInfo());
         healthChecker.getAssociates().values().forEach(this::clearTransportProbeMetrics);
+    }
+
+    private void clearAcceptedProbeMetrics(BaseHealthChecker<C, T> healthChecker) {
+        probeMetricsRecorder.removeAcceptedProbe(healthChecker.getCachedInfo());
+        healthChecker.getAssociates().values().forEach(this::clearAcceptedProbeMetrics);
+    }
+
+    private void checkTransportsAccepted() {
+        if (!probeMetricsRecorder.isEnabled()) {
+            // recordAcceptedProbe would no-op anyway, so skip the real network I/O the checks
+            // would otherwise perform on every default-configured (metrics-disabled) deployment
+            return;
+        }
+        healthCheckers.forEach(healthChecker -> healthChecker.checkAccepted());
     }
 
     private void stopHealthChecker(BaseHealthChecker<C, T> healthChecker) throws Exception {

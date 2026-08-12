@@ -47,6 +47,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
     private ProbeMetricsRecorder probeMetricsRecorder;
     private TestMonitoringService service;
     private WsClient wsClient;
+    private BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget> healthChecker;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -54,6 +55,9 @@ public class BaseMonitoringServiceProbeMetricsTest {
         wsClientFactory = mock(WsClientFactory.class);
         reporter = mock(MonitoringReporter.class);
         probeMetricsRecorder = mock(ProbeMetricsRecorder.class);
+        // enabled by default so the existing checkAccepted()-fires assertions below keep exercising
+        // the fallback path itself; the disabled-guard behavior gets its own test that overrides this
+        when(probeMetricsRecorder.isEnabled()).thenReturn(true);
         wsClient = mock(WsClient.class);
         when(wsClient.subscribeForTelemetry(any(), any())).thenReturn(wsClient);
 
@@ -68,7 +72,7 @@ public class BaseMonitoringServiceProbeMetricsTest {
         // its own check() outcome is irrelevant to this test (it's exercised in BaseHealthCheckerProbeMetricsTest).
         // getTarget() must be stubbed: BaseMonitoringService.check() reads target.isCheckDomainIps() right
         // after invoking it, and an unstubbed null there would NPE out of a "successful" run.
-        BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget> healthChecker = mock(BaseHealthChecker.class);
+        healthChecker = mock(BaseHealthChecker.class);
         TransportMonitoringTarget target = new TransportMonitoringTarget();
         target.setCheckDomainIps(false);
         when(healthChecker.getTarget()).thenReturn(target);
@@ -132,6 +136,26 @@ public class BaseMonitoringServiceProbeMetricsTest {
     }
 
     @Test
+    public void loginFailure_checksTransportAcceptance() throws Exception {
+        when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
+
+        service.runChecks();
+
+        verify(healthChecker).checkAccepted();
+    }
+
+    @Test
+    public void loginFailure_neverRemovesAcceptedProbeBeforeFallbackRuns() throws Exception {
+        // removeAcceptedProbe must never race with/precede the fallback check on the failure
+        // path - only the success path (per-target, once its fresh E2E result is in) calls it
+        when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, never()).removeAcceptedProbe(any());
+    }
+
+    @Test
     public void wsConnectFailure_recordsWsFailure() throws Exception {
         when(tbClient.logIn()).thenReturn("token");
         when(wsClientFactory.createClient("token")).thenThrow(new RuntimeException("connect failed"));
@@ -163,6 +187,26 @@ public class BaseMonitoringServiceProbeMetricsTest {
     }
 
     @Test
+    public void wsConnectFailure_checksTransportAcceptance() throws Exception {
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenThrow(new RuntimeException("connect failed"));
+
+        service.runChecks();
+
+        verify(healthChecker).checkAccepted();
+    }
+
+    @Test
+    public void wsConnectFailure_neverRemovesAcceptedProbeBeforeFallbackRuns() throws Exception {
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenThrow(new RuntimeException("connect failed"));
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, never()).removeAcceptedProbe(any());
+    }
+
+    @Test
     public void wsSubscribeFailure_recordsWsFailure() throws Exception {
         when(tbClient.logIn()).thenReturn("token");
         when(wsClientFactory.createClient("token")).thenReturn(wsClient);
@@ -185,6 +229,28 @@ public class BaseMonitoringServiceProbeMetricsTest {
     }
 
     @Test
+    public void wsSubscribeFailure_checksTransportAcceptance() throws Exception {
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenThrow(new IllegalStateException("no reply"));
+
+        service.runChecks();
+
+        verify(healthChecker).checkAccepted();
+    }
+
+    @Test
+    public void wsSubscribeFailure_neverRemovesAcceptedProbeBeforeFallbackRuns() throws Exception {
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenThrow(new IllegalStateException("no reply"));
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, never()).removeAcceptedProbe(any());
+    }
+
+    @Test
     public void successfulRun_neverClearsTransportProbeMetrics() throws Exception {
         when(tbClient.logIn()).thenReturn("token");
         when(wsClientFactory.createClient("token")).thenReturn(wsClient);
@@ -193,6 +259,65 @@ public class BaseMonitoringServiceProbeMetricsTest {
         service.runChecks();
 
         verify(probeMetricsRecorder, never()).removeProbe(any());
+    }
+
+    @Test
+    public void successfulRun_neverChecksTransportAcceptance() throws Exception {
+        // WS is healthy, so the full E2E check already covers this target - checkAccepted() must
+        // not also fire, or every healthy cycle would send two test payloads instead of one
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+
+        service.runChecks();
+
+        verify(healthChecker, never()).checkAccepted();
+    }
+
+    @Test
+    public void successfulRun_removesAcceptedProbeForEachHealthChecker() throws Exception {
+        // the E2E check just produced fresh data for this target, so any stale accepted-fallback
+        // gauge from an earlier outage cycle must be cleared now rather than freezing forever
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(any());
+    }
+
+    @Test
+    public void successfulRun_removesAcceptedProbeForAssociatesToo() throws Exception {
+        // associates (DNS-resolved IPs of the same target) get their own kind="accepted" gauge via
+        // BaseHealthChecker.checkAccepted()'s own recursion during an outage - the recovery-time
+        // clear must recurse the same way, or an associate's gauge freezes forever once set
+        BaseHealthChecker<TransportMonitoringConfig, TransportMonitoringTarget> associate =
+                mock(BaseHealthChecker.class);
+        Object associateInfo = new Object();
+        when(associate.getCachedInfo()).thenReturn(associateInfo);
+        when(healthChecker.getAssociates()).thenReturn(java.util.Map.of("associate-url", associate));
+
+        when(tbClient.logIn()).thenReturn("token");
+        when(wsClientFactory.createClient("token")).thenReturn(wsClient);
+        when(wsClient.waitForReply()).thenReturn(null);
+
+        service.runChecks();
+
+        verify(probeMetricsRecorder, times(1)).removeAcceptedProbe(associateInfo);
+    }
+
+    @Test
+    public void metricsDisabled_loginFailure_neverChecksTransportAcceptance() throws Exception {
+        // recordAcceptedProbe would no-op anyway when metrics export is disabled (the default) -
+        // checkTransportsAccepted's guard is shared code, so this one representative failure
+        // branch is enough to cover all 3 call sites
+        when(probeMetricsRecorder.isEnabled()).thenReturn(false);
+        when(tbClient.logIn()).thenThrow(new RuntimeException("login failed"));
+
+        service.runChecks();
+
+        verify(healthChecker, never()).checkAccepted();
     }
 
     private static class TestMonitoringService extends BaseMonitoringService<TransportMonitoringConfig, TransportMonitoringTarget> {
