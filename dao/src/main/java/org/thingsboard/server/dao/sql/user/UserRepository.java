@@ -59,7 +59,11 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
                                     @Param("searchText") String searchText,
                                     Pageable pageable);
 
-    Page<UserEntity> findAllByAuthority(Authority authority, Pageable pageable);
+    @Query("SELECT u FROM UserEntity u WHERE u.authority = :authority " +
+            "AND (:searchText IS NULL OR ilike(u.email, CONCAT('%', :searchText, '%')) = true)")
+    Page<UserEntity> findAllByAuthority(@Param("authority") Authority authority,
+                                        @Param("searchText") String searchText,
+                                        Pageable pageable);
 
     Page<UserEntity> findByAuthorityAndTenantIdIn(Authority authority, Collection<UUID> tenantsIds, Pageable pageable);
 
@@ -78,6 +82,10 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     List<UserFields> findNextBatch(@Param("id") UUID id, Limit limit);
 
     int countByTenantIdAndAuthority(UUID tenantId, Authority authority);
+
+    @Query("SELECT COUNT(u) FROM UserEntity u JOIN UserCredentialsEntity uc ON u.id = uc.userId " +
+            "WHERE u.authority = :authority AND uc.enabled = true")
+    int countEnabledByAuthority(@Param("authority") Authority authority);
 
     @Query("SELECT new org.thingsboard.server.common.data.util.TbPair(u, uc.enabled) " +
             "FROM UserEntity u JOIN UserCredentialsEntity uc ON u.id = uc.userId WHERE u.id = :userId ")

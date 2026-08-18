@@ -46,7 +46,7 @@
           [class.!hidden]="isEdit || isUserActivated()">
     {{'user.resend-activation' | translate }}
   </button>
-  @if (loginAsUserEnabled$ | async) {
+  @if ((loginAsUserEnabled$ | async) && entity?.authority !== authority.SYS_ADMIN) {
     <button mat-stroked-button color="primary"
             [disabled]="(isLoading$ | async)"
             (click)="onEntityAction($event, 'loginAsUser')"
@@ -124,7 +124,7 @@
             }
           </mat-select>
         </mat-form-field>
-        @if (entity?.id) {
+        @if (entity?.id && entity?.authority !== authority.SYS_ADMIN) {
           <section class="tb-default-dashboard flex flex-1 flex-col">
             <section class="flex flex-1 flex-col items-baseline gt-sm:flex-row">
               <tb-dashboard-autocomplete

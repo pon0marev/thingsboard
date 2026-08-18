@@ -355,6 +355,25 @@ public class UserController extends BaseController {
         return checkNotNull(userService.findTenantAdmins(tenantId, pageLink));
     }
 
+    @ApiOperation(value = "Get System Administrators (getSysAdmins)",
+            notes = "Returns a page of users with 'SYS_ADMIN' authority. " + PAGE_DATA_PARAMETERS + SYSTEM_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @GetMapping(value = "/sysadmins")
+    public PageData<User> getSysAdmins(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
+            @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
+            @RequestParam int page,
+            @Parameter(description = USER_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch,
+            @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "firstName", "lastName", "email"}))
+            @RequestParam(required = false) String sortProperty,
+            @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(userService.findSysAdmins(pageLink));
+    }
+
     @ApiOperation(value = "Get Customer Users (getCustomerUsers)",
             notes = "Returns a page of users owned by customer. " + PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
@@ -391,8 +410,14 @@ public class UserController extends BaseController {
             @RequestParam(required = false, defaultValue = "true") boolean userCredentialsEnabled) throws ThingsboardException {
         checkParameter(USER_ID, strUserId);
         UserId userId = new UserId(toUUID(strUserId));
-        checkUserId(userId, Operation.WRITE);
+        User user = checkUserId(userId, Operation.WRITE);
         TenantId tenantId = getCurrentUser().getTenantId();
+        if (!userCredentialsEnabled && user.getAuthority() == Authority.SYS_ADMIN) {
+            UserCredentials credentials = userService.findUserCredentialsByUserId(tenantId, userId);
+            if (credentials.isEnabled() && userService.countEnabledSysAdmins() == 1) {
+                throw new ThingsboardException("At least one system administrator must remain enabled!", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+            }
+        }
         userService.setUserCredentialsEnabled(tenantId, userId, userCredentialsEnabled);
 
         if (!userCredentialsEnabled) {

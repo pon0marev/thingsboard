@@ -7464,6 +7464,7 @@
         "customer-users": "Customer users",
         "tenant-admins": "Tenant admins",
         "sys-admin": "System administrator",
+        "sys-admins": "System administrators",
         "tenant-admin": "Tenant administrator",
         "customer": "Customer",
         "anonymous": "Anonymous",

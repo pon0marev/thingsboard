@@ -104,6 +104,8 @@ public interface UserDao extends Dao<User>, TenantEntityDao<User> {
 
     int countTenantAdmins(UUID tenantId);
 
+    int countEnabledByAuthority(Authority authority);
+
     UserAuthDetails findUserAuthDetailsByUserId(UUID tenantId, UUID userId);
 
     List<User> findUsersByTenantIdAndIds(UUID tenantId, List<UUID> userIds);

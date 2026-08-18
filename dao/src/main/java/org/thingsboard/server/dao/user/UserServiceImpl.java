@@ -539,6 +539,11 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
     }
 
     @Override
+    public int countEnabledSysAdmins() {
+        return userDao.countEnabledByAuthority(Authority.SYS_ADMIN);
+    }
+
+    @Override
     public UserAuthDetails findUserAuthDetailsByUserId(TenantId tenantId, UserId userId) {
         log.trace("Executing findUserAuthDetailsByUserId [{}]", userId);
         validateId(userId, id -> INCORRECT_USER_ID + id);

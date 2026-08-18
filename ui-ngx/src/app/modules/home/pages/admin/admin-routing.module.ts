@@ -31,6 +31,7 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { BreadCrumbConfig, BreadCrumbLabelFunction } from '@shared/components/breadcrumb';
 import { QueuesTableConfigResolver } from '@home/pages/admin/queue/queues-table-config.resolver';
+import { SysAdminsTableConfigResolver } from '@home/pages/user/sys-admins-table-config.resolver';
 import { RepositoryAdminSettingsComponent } from '@home/pages/admin/repository-admin-settings.component';
 import { AutoCommitAdminSettingsComponent } from '@home/pages/admin/auto-commit-admin-settings.component';
 import { TwoFactorAuthSettingsComponent } from '@home/pages/admin/two-factor-auth-settings.component';
@@ -319,6 +320,43 @@ const routes: Routes = [
         ]
       },
       {
+        path: 'sysadmins',
+        data: {
+          breadcrumb: {
+            menuId: MenuId.sys_admins
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.SYS_ADMIN],
+              title: 'user.sys-admins'
+            },
+            resolve: {
+              entitiesTableConfig: SysAdminsTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'mdi:shield-account-outline'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.SYS_ADMIN],
+              title: 'user.sys-admins'
+            },
+            resolve: {
+              entitiesTableConfig: SysAdminsTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
         path: 'home',
         component: HomeSettingsComponent,
         canDeactivate: [ConfirmOnExitGuard],
@@ -450,7 +488,8 @@ const routes: Routes = [
   providers: [
     ResourcesLibraryTableConfigResolver,
     JsLibraryTableConfigResolver,
-    QueuesTableConfigResolver
+    QueuesTableConfigResolver,
+    SysAdminsTableConfigResolver
   ]
 })
 export class AdminRoutingModule { }

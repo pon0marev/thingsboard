@@ -483,6 +483,83 @@ public class UserControllerTest extends AbstractControllerTest {
     }
 
     @Test
+    public void testGetSysAdmins() throws Exception {
+        loginSysAdmin();
+
+        User sysAdmin2 = new User();
+        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
+        sysAdmin2.setEmail("sysadmin2@thingsboard.org");
+        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+
+        List<User> loadedSysAdmins = new ArrayList<>();
+        PageLink pageLink = new PageLink(10);
+        PageData<User> pageData;
+        do {
+            pageData = doGetTypedWithPageLink("/api/sysadmins?",
+                    new TypeReference<PageData<User>>() {
+                    }, pageLink);
+            loadedSysAdmins.addAll(pageData.getData());
+            if (pageData.hasNext()) {
+                pageLink = pageLink.nextPageLink();
+            }
+        } while (pageData.hasNext());
+
+        List<String> emails = loadedSysAdmins.stream().map(User::getEmail).collect(Collectors.toList());
+        Assert.assertTrue(emails.contains(SYS_ADMIN_EMAIL));
+        Assert.assertTrue(emails.contains(sysAdmin2.getEmail()));
+
+        doDelete("/api/user/" + sysAdmin2.getId().getId().toString())
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testGetSysAdminsByEmail() throws Exception {
+        loginSysAdmin();
+
+        User sysAdmin2 = new User();
+        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
+        sysAdmin2.setEmail("findmeplease@thingsboard.org");
+        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+
+        PageData<User> pageData = doGetTypedWithPageLink("/api/sysadmins?",
+                new TypeReference<PageData<User>>() {
+                }, new PageLink(10, 0, "findmeplease"));
+
+        List<String> emails = pageData.getData().stream().map(User::getEmail).collect(Collectors.toList());
+        Assert.assertEquals(Collections.singletonList(sysAdmin2.getEmail()), emails);
+        Assert.assertFalse(emails.contains(SYS_ADMIN_EMAIL));
+
+        doDelete("/api/user/" + sysAdmin2.getId().getId().toString())
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void testShouldNotDisableLastSysAdmin() throws Exception {
+        loginSysAdmin();
+        User currentSysAdmin = doGet("/api/auth/user", User.class);
+
+        User sysAdmin2 = new User();
+        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
+        sysAdmin2.setEmail("sysadmin2@thingsboard.org");
+        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+
+        // disable second sysadmin - ok, the original stays enabled
+        doPost("/api/user/" + sysAdmin2.getId().getId().toString() + "/userCredentialsEnabled?userCredentialsEnabled=false")
+                .andExpect(status().isOk());
+
+        // disable the last enabled sysadmin - forbidden
+        doPost("/api/user/" + currentSysAdmin.getId().getId().toString() + "/userCredentialsEnabled?userCredentialsEnabled=false")
+                .andExpect(status().isBadRequest())
+                .andExpect(statusReason(containsString("At least one system administrator must remain enabled!")));
+
+        // the guard only ever inspects the disable path (userCredentialsEnabled=false) - enabling
+        // is never gated by it, regardless of who's left enabled
+
+        doDelete("/api/user/" + sysAdmin2.getId().getId().toString())
+                .andExpect(status().isOk());
+    }
+
+    @Test
     public void testFindTenantAdminsByEmail() throws Exception {
 
         loginSysAdmin();

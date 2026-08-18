@@ -45,6 +45,12 @@ export class UserService {
       defaultHttpOptionsFromConfig(config));
   }
 
+  public getSysAdmins(pageLink: PageLink,
+                       config?: RequestConfig): Observable<PageData<User>> {
+    return this.http.get<PageData<User>>(`/api/sysadmins${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
   public getCustomerUsers(customerId: string, pageLink: PageLink,
                           config?: RequestConfig): Observable<PageData<User>> {
     return this.http.get<PageData<User>>(`/api/customer/${customerId}/users${pageLink.toQuery()}`,
