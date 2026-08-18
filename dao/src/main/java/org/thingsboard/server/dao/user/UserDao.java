@@ -144,6 +144,8 @@ public interface UserDao extends Dao<User>, TenantEntityDao<User>, ExportableEnt
 
     boolean existsInEntityGroup(UserId id, EntityGroupId entityGroupId);
 
+    int countEnabledByAuthority(Authority authority);
+
     UserAuthDetails findUserAuthDetailsByUserId(UUID tenantId, UUID userId);
 
 }

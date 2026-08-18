@@ -97,6 +97,7 @@ export enum MenuId {
   auto_commit_settings = 'auto_commit_settings',
   queues = 'queues',
   license_management = 'license_management',
+  sys_admins = 'sys_admins',
   security_settings = 'security_settings',
   security_settings_general = 'security_settings_general',
   two_fa = 'two_fa',
@@ -571,6 +572,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       path: '/license',
       icon: 'mdi:file-cog',
       outlinedIcon: 'mdi:file-cog-outline'
+    }
+  ],
+  [
+    MenuId.sys_admins,
+    {
+      id: MenuId.sys_admins,
+      name: 'user.sys-admins',
+      type: 'link',
+      path: '/settings/sysadmins',
+      icon: 'mdi:shield-account-outline'
     }
   ],
   [
@@ -1986,7 +1997,8 @@ export const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
               {id: MenuId.general},
               {id: MenuId.mail_server},
               {id: MenuId.notification_settings},
-              {id: MenuId.queues}
+              {id: MenuId.queues},
+              {id: MenuId.sys_admins}
             ]
           },
           {id: MenuId.trendz_settings},

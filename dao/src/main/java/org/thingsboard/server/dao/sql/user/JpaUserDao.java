@@ -203,7 +203,11 @@ public class JpaUserDao extends JpaAbstractDao<UserEntity, User> implements User
 
     @Override
     public PageData<User> findAllByAuthority(Authority authority, PageLink pageLink) {
-        return DaoUtil.toPageData(userRepository.findAllByAuthority(authority, DaoUtil.toPageable(pageLink)));
+        return DaoUtil.toPageData(
+                userRepository.findAllByAuthority(
+                        authority,
+                        pageLink.getTextSearch(),
+                        DaoUtil.toPageable(pageLink)));
     }
 
     @Override
@@ -245,6 +249,11 @@ public class JpaUserDao extends JpaAbstractDao<UserEntity, User> implements User
     public UserAuthDetails findUserAuthDetailsByUserId(UUID tenantId, UUID userId) {
         TbPair<UserEntity, Boolean> result = userRepository.findUserAuthDetailsByUserId(userId);
         return result != null ? new UserAuthDetails(result.getFirst().toData(), result.getSecond()) : null;
+    }
+
+    @Override
+    public int countEnabledByAuthority(Authority authority) {
+        return userRepository.countEnabledByAuthority(authority);
     }
 
     @Override
