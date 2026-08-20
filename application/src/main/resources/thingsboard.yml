@@ -703,6 +703,9 @@ cache:
     securitySettings:
       timeToLiveInMinutes: "${CACHE_SPECS_SECURITY_SETTINGS_TTL:1440}" # Security settings cache TTL
       maxSize: "${CACHE_SPECS_SECURITY_SETTINGS_MAX_SIZE:10000}" # 0 means the cache is disabled
+    ipAllowlistSettings:
+      timeToLiveInMinutes: "${CACHE_SPECS_IP_ALLOWLIST_SETTINGS_TTL:1440}" # IP allowlist settings cache TTL
+      maxSize: "${CACHE_SPECS_IP_ALLOWLIST_SETTINGS_MAX_SIZE:10000}" # 0 means the cache is disabled
     tenantProfiles:
       timeToLiveInMinutes: "${CACHE_SPECS_TENANT_PROFILES_TTL:1440}" # Tenant profiles cache TTL
       maxSize: "${CACHE_SPECS_TENANT_PROFILES_MAX_SIZE:10000}" # 0 means the cache is disabled

@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -61,6 +62,7 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.security.model.JwtPair;
 import org.thingsboard.server.common.data.security.model.JwtSettings;
 import org.thingsboard.server.common.data.security.model.SecuritySettings;
@@ -72,8 +74,10 @@ import org.thingsboard.server.common.data.sync.vc.VcUtils;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.audit.AuditLogService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
+import org.thingsboard.server.dao.settings.IpAllowlistSettingsService;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.security.system.IpAllowlistUtils;
 import org.thingsboard.server.service.security.auth.jwt.settings.JwtSettingsService;
 import org.thingsboard.server.service.security.auth.oauth2.CookieUtils;
 import org.thingsboard.server.service.security.model.SecurityUser;
@@ -87,6 +91,7 @@ import org.thingsboard.server.service.system.SystemInfoService;
 import org.thingsboard.server.service.update.UpdateService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -110,6 +115,7 @@ public class AdminController extends BaseController {
     private final AdminSettingsService adminSettingsService;
     private final SystemSecurityService systemSecurityService;
     private final SecuritySettingsService securitySettingsService;
+    private final IpAllowlistSettingsService ipAllowlistSettingsService;
     private final JwtSettingsService jwtSettingsService;
     private final JwtTokenFactory tokenFactory;
     private final EntitiesVersionControlService versionControlService;
@@ -178,6 +184,54 @@ public class AdminController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.WRITE);
         securitySettings = checkNotNull(securitySettingsService.saveSecuritySettings(securitySettings));
         return securitySettings;
+    }
+
+    @ApiOperation(value = "Get the IP Allowlist Settings object (getIpAllowlistSettings)",
+            notes = "Get the IP Allowlist Settings object that restricts SYS_ADMIN login to trusted networks. " +
+                    "An empty list means no restriction. Loopback is always allowed." + SYSTEM_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @GetMapping(value = "/ipAllowlistSettings")
+    public IpAllowlistSettings getIpAllowlistSettings() throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+        return checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings());
+    }
+
+    @ApiOperation(value = "Update IP Allowlist Settings (saveIpAllowlistSettings)",
+            notes = "Updates the IP Allowlist Settings object that restricts SYS_ADMIN login to trusted networks. " +
+                    "Transitioning from an empty list to a non-empty one is rejected if it would exclude the " +
+                    "caller's own current IP, unless 'force=true' is passed." + SYSTEM_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PostMapping(value = "/ipAllowlistSettings")
+    public IpAllowlistSettings saveIpAllowlistSettings(
+            @Parameter(description = "A JSON value representing the IP Allowlist Settings.")
+            @RequestBody IpAllowlistSettings ipAllowlistSettings,
+            @Parameter(description = "Confirms saving a non-empty list even if it would exclude the caller's own current IP.")
+            @RequestParam(required = false, defaultValue = "false") boolean force,
+            HttpServletRequest request) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.WRITE);
+
+        List<String> newAllowlist = ipAllowlistSettings.getIpAllowlist() != null
+                ? ipAllowlistSettings.getIpAllowlist() : Collections.emptyList();
+        for (String entry : newAllowlist) {
+            try {
+                new IpAddressMatcher(entry);
+            } catch (IllegalArgumentException e) {
+                throw new ThingsboardException("Invalid IP address or CIDR block: " + entry, ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+            }
+        }
+
+        IpAllowlistSettings currentSettings = ipAllowlistSettingsService.getIpAllowlistSettings();
+        boolean wasEmpty = currentSettings.getIpAllowlist() == null || currentSettings.getIpAllowlist().isEmpty();
+        if (wasEmpty && !newAllowlist.isEmpty() && !force) {
+            String callerIp = request.getRemoteAddr();
+            if (!IpAllowlistUtils.isIpAllowed(newAllowlist, callerIp)) {
+                throw new ThingsboardException("Saving this list would lock out your own current IP (" + callerIp +
+                        "). Include it in the list, or pass force=true to proceed anyway.", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+            }
+        }
+
+        ipAllowlistSettings.setIpAllowlist(newAllowlist);
+        return checkNotNull(ipAllowlistSettingsService.saveIpAllowlistSettings(ipAllowlistSettings));
     }
 
     @ApiOperation(value = "Get the JWT Settings object (getJwtSettings)",

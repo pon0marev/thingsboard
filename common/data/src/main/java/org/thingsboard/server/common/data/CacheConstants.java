@@ -32,6 +32,7 @@ public final class CacheConstants {
     public static final String RELATED_EDGES_CACHE = "relatedEdges";
     public static final String CLAIM_DEVICES_CACHE = "claimDevices";
     public static final String SECURITY_SETTINGS_CACHE = "securitySettings";
+    public static final String IP_ALLOWLIST_SETTINGS_CACHE = "ipAllowlistSettings";
     public static final String TENANT_PROFILE_CACHE = "tenantProfiles";
     public static final String TENANTS_CACHE = "tenants";
     public static final String TENANTS_EXIST_CACHE = "tenantsExist";
