@@ -29,6 +29,7 @@ import {
 } from '@shared/models/settings.models';
 import { WhiteLabelingComponent } from '@home/pages/admin/white-labeling.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
+import { IpAllowlistSettingsComponent } from '@modules/home/pages/admin/ip-allowlist-settings.component';
 import { HomeSettingsComponent } from '@home/pages/admin/home-settings.component';
 import { EntitiesTableComponent } from '@home/components/entity/entities-table.component';
 import { ResourcesLibraryTableConfigResolver } from '@home/pages/admin/resource/resources-library-table-config.resolve';
@@ -589,6 +590,18 @@ const routes: Routes = [
           title: 'admin.2fa.2fa',
           breadcrumb: {
             menuId: MenuId.two_fa
+          }
+        }
+      },
+      {
+        path: 'ip-allowlist',
+        component: IpAllowlistSettingsComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.SYS_ADMIN],
+          title: 'admin.ip-allowlist.ip-allowlist',
+          breadcrumb: {
+            menuId: MenuId.ip_allowlist
           }
         }
       },

@@ -101,6 +101,7 @@ export enum MenuId {
   security_settings = 'security_settings',
   security_settings_general = 'security_settings_general',
   two_fa = 'two_fa',
+  ip_allowlist = 'ip_allowlist',
   oauth2 = 'oauth2',
   domains = 'domains',
   clients = 'clients',
@@ -616,6 +617,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       path: '/security-settings/2fa',
       icon: 'mdi:two-factor-authentication',
       outlinedIcon: 'mdi:two-factor-authentication'
+    }
+  ],
+  [
+    MenuId.ip_allowlist,
+    {
+      id: MenuId.ip_allowlist,
+      name: 'admin.ip-allowlist.ip-allowlist',
+      type: 'link',
+      path: '/security-settings/ip-allowlist',
+      icon: 'mdi:ip-network-outline'
     }
   ],
   [
@@ -1977,6 +1988,7 @@ export const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         pages: [
           {id: MenuId.security_settings_general},
           {id: MenuId.two_fa},
+          {id: MenuId.ip_allowlist},
           {id: MenuId.secrets},
           {
             id: MenuId.oauth2,

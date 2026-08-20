@@ -9,6 +9,7 @@ import { SharedModule } from '@app/shared/shared.module';
 import { MailServerComponent } from '@modules/home/pages/admin/mail-server.component';
 import { GeneralSettingsComponent } from '@modules/home/pages/admin/general-settings.component';
 import { SecuritySettingsComponent } from '@modules/home/pages/admin/security-settings.component';
+import { IpAllowlistSettingsComponent } from '@modules/home/pages/admin/ip-allowlist-settings.component';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { MailTemplatesComponent } from '@home/pages/admin/mail-templates.component';
 import { WhiteLabelingComponent } from '@home/pages/admin/white-labeling.component';
@@ -49,6 +50,7 @@ import { LicenseHandOffDialogComponent } from '@home/pages/admin/license-hand-of
       CustomCssDialogComponent,
       SelfRegistrationComponent,
       SecuritySettingsComponent,
+      IpAllowlistSettingsComponent,
       HomeSettingsComponent,
       ResourceTabsComponent,
       ResourceLibraryTabsComponent,
