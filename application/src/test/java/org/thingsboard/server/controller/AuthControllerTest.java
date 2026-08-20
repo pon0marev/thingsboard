@@ -23,6 +23,8 @@ import org.mockito.Mockito;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.HttpHeaders;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.User;
@@ -30,12 +32,14 @@ import org.thingsboard.server.common.data.UserActivationLink;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
+import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.security.model.SecuritySettings;
 import org.thingsboard.server.dao.service.DaoSqlTest;
 import org.thingsboard.server.dao.user.UserCredentialsDao;
 import org.thingsboard.server.service.security.auth.rest.LoginRequest;
 import org.thingsboard.server.service.security.model.ChangePasswordRequest;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -43,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -298,6 +303,68 @@ public class AuthControllerTest extends AbstractControllerTest {
     public void testGetPageWithoutRedirect() throws Exception {
         doGet("/login").andExpect(status().isOk());
         doGet("/home").andExpect(status().isOk());
+    }
+
+    @Test
+    public void testSysAdminLoginBlockedByIpAllowlist() throws Exception {
+        loginSysAdmin();
+        saveIpAllowlist(ipAllowlistOf("198.51.100.0/24")).andExpect(status().isOk());
+
+        try {
+            // login from an IP outside the configured list - rejected before password verification
+            MockHttpServletRequestBuilder blockedLogin = post("/api/auth/login");
+            blockedLogin.contentType(contentType).content(json(new LoginRequest(SYS_ADMIN_EMAIL, SYS_ADMIN_PASSWORD)));
+            blockedLogin.with(request -> {
+                request.setRemoteAddr("203.0.113.9");
+                return request;
+            });
+            String error = getErrorMessage(mockMvc.perform(blockedLogin).andExpect(status().isForbidden()));
+            assertThat(error).containsIgnoringCase("not allowed");
+
+            // a wrong password from the SAME blocked IP still gets the IP rejection, not "invalid
+            // username or password" - proves the check runs before password verification
+            MockHttpServletRequestBuilder blockedWrongPassword = post("/api/auth/login");
+            blockedWrongPassword.contentType(contentType).content(json(new LoginRequest(SYS_ADMIN_EMAIL, "WrongPassword")));
+            blockedWrongPassword.with(request -> {
+                request.setRemoteAddr("203.0.113.9");
+                return request;
+            });
+            String wrongPasswordError = getErrorMessage(mockMvc.perform(blockedWrongPassword).andExpect(status().isForbidden()));
+            assertThat(wrongPasswordError).containsIgnoringCase("not allowed");
+
+            // login from an IP inside the list still works
+            MockHttpServletRequestBuilder allowedLogin = post("/api/auth/login");
+            allowedLogin.contentType(contentType).content(json(new LoginRequest(SYS_ADMIN_EMAIL, SYS_ADMIN_PASSWORD)));
+            allowedLogin.with(request -> {
+                request.setRemoteAddr("198.51.100.42");
+                return request;
+            });
+            mockMvc.perform(allowedLogin).andExpect(status().isOk());
+
+            // loopback is always allowed regardless of list contents (MockMvc's own default
+            // remote address is 127.0.0.1, so a plain doPost proves this without any postprocessor)
+            doPost("/api/auth/login", new LoginRequest(SYS_ADMIN_EMAIL, SYS_ADMIN_PASSWORD))
+                    .andExpect(status().isOk());
+        } finally {
+            loginSysAdmin();
+            saveIpAllowlist(ipAllowlistOf()).andExpect(status().isOk());
+        }
+    }
+
+    private IpAllowlistSettings ipAllowlistOf(String... entries) {
+        IpAllowlistSettings settings = new IpAllowlistSettings();
+        settings.setIpAllowlist(List.of(entries));
+        return settings;
+    }
+
+    // doPost(url, content, String...) treats trailing String... as URI template variables, not
+    // query params (populateParams/request.params(...) is only wired into the no-content overload)
+    // - build the request directly to get a real "?force=true" on the query string
+    private ResultActions saveIpAllowlist(IpAllowlistSettings settings) throws Exception {
+        MockHttpServletRequestBuilder request = post("/api/admin/ipAllowlistSettings").param("force", "true");
+        setJwtToken(request);
+        request.contentType(contentType).content(json(settings));
+        return mockMvc.perform(request);
     }
 
     private void updateSecuritySettings(Consumer<SecuritySettings> updater) throws Exception {

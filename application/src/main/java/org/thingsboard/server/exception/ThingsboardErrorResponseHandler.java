@@ -55,6 +55,7 @@ import org.thingsboard.server.common.msg.tools.MaxPayloadSizeExceededException;
 import org.thingsboard.server.common.msg.tools.TbRateLimitsException;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.service.security.exception.AuthMethodNotSupportedException;
+import org.thingsboard.server.service.security.exception.IpNotAllowedException;
 import org.thingsboard.server.service.security.exception.JwtExpiredTokenException;
 import org.thingsboard.server.service.security.exception.UserPasswordExpiredException;
 import org.thingsboard.server.service.security.exception.UserPasswordNotValidException;
@@ -278,6 +279,9 @@ public class ThingsboardErrorResponseHandler extends ResponseEntityExceptionHand
             JacksonUtil.writeValue(response.getWriter(), ThingsboardCredentialsViolationResponse.of(expiredException.getMessage()));
         } else if (authenticationException instanceof CredentialsExpiredException credentialsExpiredException) {
             JacksonUtil.writeValue(response.getWriter(), ThingsboardCredentialsViolationResponse.of(credentialsExpiredException.getMessage(), ThingsboardErrorCode.AUTHENTICATION, HttpStatus.UNAUTHORIZED));
+        } else if (authenticationException instanceof IpNotAllowedException ipNotAllowedException) {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            JacksonUtil.writeValue(response.getWriter(), ThingsboardErrorResponse.of(ipNotAllowedException.getMessage(), ThingsboardErrorCode.AUTHENTICATION, HttpStatus.FORBIDDEN));
         } else {
             JacksonUtil.writeValue(response.getWriter(), ThingsboardErrorResponse.of("Authentication failed", ThingsboardErrorCode.AUTHENTICATION, HttpStatus.UNAUTHORIZED));
         }
