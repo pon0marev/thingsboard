@@ -18,10 +18,13 @@ import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.permission.MergedUserPermissions;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
+import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.security.model.SecuritySettings;
 import org.thingsboard.server.common.data.security.model.UserPasswordPolicy;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.settings.IpAllowlistSettingsService;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.exception.DataValidationException;
@@ -30,10 +33,12 @@ import org.thingsboard.server.service.security.auth.AbstractAuthenticationProvid
 import org.thingsboard.server.service.security.auth.MfaAuthenticationToken;
 import org.thingsboard.server.service.security.auth.MfaConfigurationToken;
 import org.thingsboard.server.service.security.auth.mfa.TwoFactorAuthService;
+import org.thingsboard.server.service.security.exception.IpNotAllowedException;
 import org.thingsboard.server.service.security.exception.UserPasswordNotValidException;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 import org.thingsboard.server.service.security.permission.UserPermissionsService;
+import org.thingsboard.server.service.security.system.IpAllowlistUtils;
 import org.thingsboard.server.service.security.system.SystemSecurityService;
 
 @Component
@@ -43,6 +48,7 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
 
     private final SystemSecurityService systemSecurityService;
     private final SecuritySettingsService securitySettingsService;
+    private final IpAllowlistSettingsService ipAllowlistSettingsService;
     private final UserService userService;
     private final UserPermissionsService userPermissionsService;
     private final TwoFactorAuthService twoFactorAuthService;
@@ -52,12 +58,14 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
                                       final UserPermissionsService userPermissionsService,
                                       final SystemSecurityService systemSecurityService,
                                       SecuritySettingsService securitySettingsService,
+                                      IpAllowlistSettingsService ipAllowlistSettingsService,
                                       TwoFactorAuthService twoFactorAuthService) {
         super(customerService, null, userPermissionsService);
         this.userService = userService;
         this.userPermissionsService = userPermissionsService;
         this.systemSecurityService = systemSecurityService;
         this.securitySettingsService = securitySettingsService;
+        this.ipAllowlistSettingsService = ipAllowlistSettingsService;
         this.twoFactorAuthService = twoFactorAuthService;
     }
 
@@ -111,6 +119,14 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
             UserCredentials userCredentials = userService.findUserCredentialsByUserId(TenantId.SYS_TENANT_ID, user.getId());
             if (userCredentials == null) {
                 throw new UsernameNotFoundException("User credentials not found");
+            }
+
+            if (user.getAuthority() == Authority.SYS_ADMIN) {
+                String clientIp = ((RestAuthenticationDetails) authentication.getDetails()).getClientAddress();
+                IpAllowlistSettings ipAllowlistSettings = ipAllowlistSettingsService.getIpAllowlistSettings();
+                if (!IpAllowlistUtils.isIpAllowed(ipAllowlistSettings.getIpAllowlist(), clientIp)) {
+                    throw new IpNotAllowedException("Login for system administrators is not allowed from this IP address");
+                }
             }
 
             try {
