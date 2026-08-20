@@ -22,6 +22,7 @@ import { SharedModule } from '@app/shared/shared.module';
 import { MailServerComponent } from '@modules/home/pages/admin/mail-server.component';
 import { GeneralSettingsComponent } from '@modules/home/pages/admin/general-settings.component';
 import { SecuritySettingsComponent } from '@modules/home/pages/admin/security-settings.component';
+import { IpAllowlistSettingsComponent } from '@modules/home/pages/admin/ip-allowlist-settings.component';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { SmsProviderComponent } from '@home/pages/admin/sms-provider.component';
 import { SendTestSmsDialogComponent } from '@home/pages/admin/send-test-sms-dialog.component';
@@ -47,6 +48,7 @@ import { ResourceLibraryTabsComponent } from '@home/pages/admin/resource/resourc
       SmsProviderComponent,
       SendTestSmsDialogComponent,
       SecuritySettingsComponent,
+      IpAllowlistSettingsComponent,
       HomeSettingsComponent,
       ResourceTabsComponent,
       ResourceLibraryTabsComponent,

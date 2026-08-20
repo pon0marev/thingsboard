@@ -125,6 +125,10 @@ export interface JwtSettings {
   refreshTokenExpTime: number;
 }
 
+export interface IpAllowlistSettings {
+  ipAllowlist: string[];
+}
+
 export interface UpdateMessage {
   updateAvailable: boolean;
   currentVersion: string;

@@ -521,6 +521,13 @@
             "force-2fa": "Enforce two-factor authentication",
             "enforce-for": "Enforce for"
         },
+        "ip-allowlist": {
+            "ip-allowlist": "IP Allowlist",
+            "entry-placeholder": "IP address or CIDR block",
+            "hint": "CIDR blocks or single IP addresses allowed to log in as a system administrator. Empty means no restriction. Loopback is always allowed.",
+            "lockout-title": "This may lock you out",
+            "save-anyway": "Save anyway"
+        },
         "jwt": {
             "security-settings": "JWT security settings",
             "issuer-name": "Issuer name",

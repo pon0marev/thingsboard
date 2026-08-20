@@ -22,6 +22,7 @@ import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { Authority } from '@shared/models/authority.enum';
 import { GeneralSettingsComponent } from '@modules/home/pages/admin/general-settings.component';
 import { SecuritySettingsComponent } from '@modules/home/pages/admin/security-settings.component';
+import { IpAllowlistSettingsComponent } from '@modules/home/pages/admin/ip-allowlist-settings.component';
 import { forkJoin, of } from 'rxjs';
 import { SmsProviderComponent } from '@home/pages/admin/sms-provider.component';
 import { HomeSettingsComponent } from '@home/pages/admin/home-settings.component';
@@ -473,6 +474,18 @@ const routes: Routes = [
           title: 'admin.2fa.2fa',
           breadcrumb: {
             menuId: MenuId.two_fa
+          }
+        }
+      },
+      {
+        path: 'ip-allowlist',
+        component: IpAllowlistSettingsComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.SYS_ADMIN],
+          title: 'admin.ip-allowlist.ip-allowlist',
+          breadcrumb: {
+            menuId: MenuId.ip_allowlist
           }
         }
       },

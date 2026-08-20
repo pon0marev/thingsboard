@@ -22,6 +22,7 @@ import {
   AdminSettings,
   AutoCommitSettings,
   FeaturesInfo,
+  IpAllowlistSettings,
   JwtSettings,
   MailConfigTemplate,
   MailServerSettings,
@@ -71,6 +72,16 @@ export class AdminService {
   public saveSecuritySettings(securitySettings: SecuritySettings,
                               config?: RequestConfig): Observable<SecuritySettings> {
     return this.http.post<SecuritySettings>('/api/admin/securitySettings', securitySettings,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public getIpAllowlistSettings(config?: RequestConfig): Observable<IpAllowlistSettings> {
+    return this.http.get<IpAllowlistSettings>('/api/admin/ipAllowlistSettings', defaultHttpOptionsFromConfig(config));
+  }
+
+  public saveIpAllowlistSettings(ipAllowlistSettings: IpAllowlistSettings, force = false,
+                                 config?: RequestConfig): Observable<IpAllowlistSettings> {
+    return this.http.post<IpAllowlistSettings>(`/api/admin/ipAllowlistSettings?force=${force}`, ipAllowlistSettings,
       defaultHttpOptionsFromConfig(config));
   }
 
