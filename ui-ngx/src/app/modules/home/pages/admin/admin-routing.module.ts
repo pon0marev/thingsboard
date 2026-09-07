@@ -37,7 +37,7 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { BreadCrumbConfig, BreadCrumbLabelFunction } from '@shared/components/breadcrumb';
 import { QueuesTableConfigResolver } from '@home/pages/admin/queue/queues-table-config.resolver';
-import { SysAdminsTableConfigResolver } from '@home/pages/user/sys-admins-table-config.resolver';
+import { UsersTableConfigResolver } from '@modules/home/pages/user/users-table-config.resolver';
 import { RepositoryAdminSettingsComponent } from '@home/pages/admin/repository-admin-settings.component';
 import { AutoCommitAdminSettingsComponent } from '@home/pages/admin/auto-commit-admin-settings.component';
 import { TwoFactorAuthSettingsComponent } from '@home/pages/admin/two-factor-auth-settings.component';
@@ -441,10 +441,11 @@ const routes: Routes = [
             component: EntitiesTableComponent,
             data: {
               auth: [Authority.SYS_ADMIN],
+              authority: Authority.SYS_ADMIN,
               title: 'user.sys-admins'
             },
             resolve: {
-              entitiesTableConfig: SysAdminsTableConfigResolver
+              entitiesTableConfig: UsersTableConfigResolver
             }
           },
           {
@@ -457,10 +458,11 @@ const routes: Routes = [
                 icon: 'mdi:shield-account-outline'
               } as BreadCrumbConfig<EntityDetailsPageComponent>,
               auth: [Authority.SYS_ADMIN],
+              authority: Authority.SYS_ADMIN,
               title: 'user.sys-admins'
             },
             resolve: {
-              entitiesTableConfig: SysAdminsTableConfigResolver
+              entitiesTableConfig: UsersTableConfigResolver
             }
           }
         ]
@@ -704,7 +706,7 @@ const routes: Routes = [
     ResourcesLibraryTableConfigResolver,
     JsLibraryTableConfigResolver,
     QueuesTableConfigResolver,
-    SysAdminsTableConfigResolver
+    UsersTableConfigResolver
   ]
 })
 export class AdminRoutingModule { }

@@ -81,7 +81,8 @@ public class ThingsboardErrorResponse {
             "\n\n* `35` - Version conflict (HTTP: 409 - Conflict)" +
             "\n\n* `40` - Subscription violation (HTTP: 403 - Forbidden)" +
             "\n\n* `41` - Entities limit exceeded (HTTP: 403 - Forbidden)" +
-            "\n\n* `47` - Setup incomplete (HTTP: 423 - Locked)",
+            "\n\n* `47` - Setup incomplete (HTTP: 423 - Locked)" +
+            "\n\n* `48` - Saving this IP allowlist would lock the caller out (HTTP: 400 - Bad Request)",
             example = "10", type = "integer",
             accessMode = Schema.AccessMode.READ_ONLY)
     public ThingsboardErrorCode getErrorCode() {

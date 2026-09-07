@@ -19,7 +19,8 @@ export const Constants = {
     tooManyUpdates: 34,
     subscriptionViolation: 40,
     entitiesLimitExceeded: 41,
-    passwordViolation: 45
+    passwordViolation: 45,
+    ipAllowlistLockout: 48
   },
   entryPoints: {
     login: '/api/auth/login',

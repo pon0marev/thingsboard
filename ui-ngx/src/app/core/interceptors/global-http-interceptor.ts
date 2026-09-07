@@ -115,7 +115,10 @@ export class GlobalHttpInterceptor implements HttpInterceptor {
         unhandled = true;
       }
     } else if (errorResponse.status === 403) {
-      if (!ignoreErrors) {
+      if (req.url === Constants.entryPoints.login) {
+        // e.g. SYS_ADMIN IP allowlist rejection - show the server's specific message, not the generic dialog
+        unhandled = true;
+      } else if (!ignoreErrors) {
         this.dialogService.permissionDenied();
       }
     } else if (errorResponse.status === 423) {

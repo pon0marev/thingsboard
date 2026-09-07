@@ -48,6 +48,7 @@ import { UserTabsComponent } from '@home/pages/user/user-tabs.component';
 import { UserTableHeaderComponent } from '@home/pages/user/user-table-header.component';
 import { Customer } from '@shared/models/customer.model';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
+import { PageData } from '@shared/models/page/page-data';
 import { HomeDialogsService } from '@home/dialogs/home-dialogs.service';
 import { AddUserDialogComponent, AddUserDialogData } from '@home/pages/user/add-user-dialog.component';
 
@@ -75,6 +76,7 @@ export class UsersTableConfigResolver  {
   resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<UserInfo>> {
     const groupParams = resolveGroupParams(route);
     const tenantId = route.params.tenantId;
+    const sysAdmin = (route.data as UsersTableRouteData)?.authority === Authority.SYS_ADMIN;
     const config = new EntityTableConfig<UserInfo>(groupParams);
     const authState = getCurrentAuthState(this.store);
     const authUser = authState.authUser;
@@ -90,7 +92,9 @@ export class UsersTableConfigResolver  {
       }
     };
     let titleObservable: Observable<string>;
-    if (tenantId && authUser.authority === Authority.SYS_ADMIN) {
+    if (sysAdmin) {
+      titleObservable = of(this.translate.instant('user.sys-admins'));
+    } else if (tenantId && authUser.authority === Authority.SYS_ADMIN) {
       titleObservable = this.tenantService.getTenant(tenantId).pipe(
         map((tenant) => tenant.title + ': ' + this.translate.instant('user.tenant-admins'))
       );
@@ -111,7 +115,12 @@ export class UsersTableConfigResolver  {
         config.tableTitle = title;
         config.columns = this.configureColumns(authUser, config);
         this.configureEntityFunctions(authUser, config, tenantId);
-        config.cellActionDescriptors = this.configureCellActions(authState, config);
+        if (sysAdmin) {
+          config.entitiesFetchFunction = pageLink => this.userService.getSysAdmins(pageLink) as Observable<PageData<UserInfo>>;
+          config.addEnabled = false;
+        }
+        // logging in as a sysadmin isn't supported
+        config.cellActionDescriptors = sysAdmin ? [] : this.configureCellActions(authState, config);
         config.groupActionDescriptors = this.configureGroupActions(config);
         config.addActionDescriptors = this.configureAddActions(config);
         return this.allEntitiesTableConfigService.prepareConfiguration(config);

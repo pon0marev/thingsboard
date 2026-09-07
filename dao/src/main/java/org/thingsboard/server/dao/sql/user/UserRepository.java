@@ -191,10 +191,6 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID>, Exporta
             + ")", nativeQuery = true)
     boolean existsInEntityGroup(@Param("userId") UUID userId, @Param("groupId") UUID groupId);
 
-    @Query("SELECT COUNT(u) FROM UserEntity u JOIN UserCredentialsEntity uc ON u.id = uc.userId " +
-            "WHERE u.authority = :authority AND uc.enabled = true")
-    int countEnabledByAuthority(@Param("authority") Authority authority);
-
     @Query("SELECT new org.thingsboard.server.common.data.util.TbPair(u, uc.enabled) " +
             "FROM UserEntity u JOIN UserCredentialsEntity uc ON u.id = uc.userId WHERE u.id = :userId ")
     TbPair<UserEntity, Boolean> findUserAuthDetailsByUserId(@Param("userId") UUID userId);

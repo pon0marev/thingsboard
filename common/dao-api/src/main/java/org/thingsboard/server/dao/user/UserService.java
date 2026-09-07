@@ -130,6 +130,12 @@ public interface UserService extends EntityDaoService {
 
     void setUserCredentialsEnabled(TenantId tenantId, UserId userId, boolean enabled);
 
+    /**
+     * Disables a SYS_ADMIN's credentials, atomically guarding against disabling the last enabled one.
+     * @throws org.thingsboard.server.exception.DataValidationException if this would leave zero enabled system administrators
+     */
+    void disableSysAdminCredentials(TenantId tenantId, UserId userId);
+
     void resetFailedLoginAttempts(TenantId tenantId, UserId userId);
 
     int increaseFailedLoginAttempts(TenantId tenantId, UserId userId);
@@ -157,8 +163,6 @@ public interface UserService extends EntityDaoService {
     void updateUsersCustomMenuId(List<UserId> ids, CustomMenuId customMenuId);
 
     boolean existsInEntityGroup(UserId id, EntityGroupId entityGroupId);
-
-    int countEnabledSysAdmins();
 
     PageData<User> findUsersByFilter(TenantId tenantId, UsersFilter filter, PageLink pageLink);
 
