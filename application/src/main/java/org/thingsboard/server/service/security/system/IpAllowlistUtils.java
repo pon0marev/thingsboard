@@ -20,10 +20,25 @@ import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class IpAllowlistUtils {
 
     private IpAllowlistUtils() {
+    }
+
+    /**
+     * Validates that every entry is a well-formed IP address or CIDR block.
+     * @throws IllegalArgumentException naming the first invalid entry
+     */
+    public static void validate(List<String> ipAllowlist) {
+        for (String entry : ipAllowlist) {
+            try {
+                new IpAddressMatcher(entry);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid IP address or CIDR block: " + entry, e);
+            }
+        }
     }
 
     // loopback is always allowed (break-glass path for direct server access), and an empty/null
@@ -39,6 +54,11 @@ public final class IpAllowlistUtils {
     }
 
     private static boolean isLoopback(String clientIp) {
+        if (clientIp == null) {
+            // fail closed - InetAddress.getByName(null) resolves to the loopback address, which
+            // would otherwise make a null client address silently bypass the allowlist entirely
+            return false;
+        }
         try {
             return InetAddress.getByName(clientIp).isLoopbackAddress();
         } catch (UnknownHostException e) {

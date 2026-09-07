@@ -32,7 +32,8 @@ export const Constants = {
     tooManyRequests: 33,
     tooManyUpdates: 34,
     entitiesLimitExceeded: 41,
-    passwordViolation: 45
+    passwordViolation: 45,
+    ipAllowlistLockout: 47
   },
   entryPoints: {
     login: '/api/auth/login',

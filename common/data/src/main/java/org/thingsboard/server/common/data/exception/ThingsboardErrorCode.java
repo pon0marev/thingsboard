@@ -33,7 +33,8 @@ public enum ThingsboardErrorCode {
     SUBSCRIPTION_VIOLATION(40),
     ENTITIES_LIMIT_EXCEEDED(41),
     PASSWORD_VIOLATION(45),
-    DATABASE(46);
+    DATABASE(46),
+    IP_ALLOWLIST_LOCKOUT(47);
 
     private int errorCode;
 

@@ -17,9 +17,11 @@ package org.thingsboard.server.dao.user;
 
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.dao.Dao;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -66,5 +68,11 @@ public interface UserCredentialsDao extends Dao<UserCredentials> {
     int incrementFailedLoginAttempts(TenantId tenantId, UserId userId);
 
     void setFailedLoginAttempts(TenantId tenantId, UserId userId, int failedLoginAttempts);
+
+    /**
+     * Locks and returns all credentials for users of the given authority, for use inside a transaction
+     * that needs a consistent, race-free view of how many of them are currently enabled.
+     */
+    List<UserCredentials> findByAuthorityForUpdate(Authority authority);
 
 }

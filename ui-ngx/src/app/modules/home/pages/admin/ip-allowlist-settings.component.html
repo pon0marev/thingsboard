@@ -32,13 +32,34 @@
   <mat-card-content>
     <form [formGroup]="ipAllowlistFormGroup" (ngSubmit)="save()" autocomplete="off">
       <fieldset [disabled]="isLoading$ | async">
+        @if (settingsLoaded) {
+          <div class="flex flex-row items-center gap-2 tb-ip-allowlist-banner">
+            <mat-icon [color]="isRestricted ? 'primary' : 'warn'">{{ isRestricted ? 'lock' : 'lock_open' }}</mat-icon>
+            @if (isRestricted) {
+              <span>{{ 'admin.ip-allowlist.restricted-info' | translate: {count: currentAllowlist.length} }}</span>
+            } @else {
+              <span>{{ 'admin.ip-allowlist.no-restriction-warning' | translate }}</span>
+            }
+          </div>
+          @if (showCallerIpHint) {
+            <div class="flex flex-row items-center gap-2 tb-caller-ip-hint">
+              <mat-icon>info_outline</mat-icon>
+              <span>{{ 'admin.ip-allowlist.your-ip' | translate: {ip: callerIp} }}</span>
+              <button mat-button color="primary" type="button" (click)="addCallerIp()">
+                {{ 'admin.ip-allowlist.add-my-ip' | translate }}
+              </button>
+            </div>
+          }
+        }
         <tb-string-items-list
           appearance="outline"
           formControlName="ipAllowlist"
           label="{{ 'admin.ip-allowlist.ip-allowlist' | translate }}"
           placeholder="{{ 'admin.ip-allowlist.entry-placeholder' | translate }}"
           hint="{{ 'admin.ip-allowlist.hint' | translate }}"
-          [allowUserValue]="true">
+          [allowUserValue]="true"
+          [itemValidator]="isValidIpOrCidr"
+          invalidItemText="{{ 'admin.ip-allowlist.invalid-entry' | translate }}">
         </tb-string-items-list>
         <div class="flex flex-row flex-wrap items-center justify-end gap-2" style="margin-top: 16px">
           <button mat-button color="primary"

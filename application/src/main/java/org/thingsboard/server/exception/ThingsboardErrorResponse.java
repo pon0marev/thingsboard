@@ -65,7 +65,8 @@ public class ThingsboardErrorResponse {
             "\n\n* `33` - Too many requests (HTTP: 429 - Too Many Requests)" +
             "\n\n* `34` - Too many updates (Too many updates over Websocket session)" +
             "\n\n* `40` - Subscription violation (HTTP: 403 - Forbidden)" +
-            "\n\n* `41` - Entities limit exceeded (HTTP: 403 - Forbidden)",
+            "\n\n* `41` - Entities limit exceeded (HTTP: 403 - Forbidden)" +
+            "\n\n* `47` - Saving this IP allowlist would lock the caller out (HTTP: 400 - Bad Request)",
             example = "10", type = "integer",
             accessMode = Schema.AccessMode.READ_ONLY)
     public ThingsboardErrorCode getErrorCode() {

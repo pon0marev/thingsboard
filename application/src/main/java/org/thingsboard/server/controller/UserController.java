@@ -413,12 +413,10 @@ public class UserController extends BaseController {
         User user = checkUserId(userId, Operation.WRITE);
         TenantId tenantId = getCurrentUser().getTenantId();
         if (!userCredentialsEnabled && user.getAuthority() == Authority.SYS_ADMIN) {
-            UserCredentials credentials = userService.findUserCredentialsByUserId(tenantId, userId);
-            if (credentials.isEnabled() && userService.countEnabledSysAdmins() == 1) {
-                throw new ThingsboardException("At least one system administrator must remain enabled!", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
-            }
+            userService.disableSysAdminCredentials(tenantId, userId);
+        } else {
+            userService.setUserCredentialsEnabled(tenantId, userId, userCredentialsEnabled);
         }
-        userService.setUserCredentialsEnabled(tenantId, userId, userCredentialsEnabled);
 
         if (!userCredentialsEnabled) {
             eventPublisher.publishEvent(new UserCredentialsInvalidationEvent(userId));

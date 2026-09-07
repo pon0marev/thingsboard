@@ -104,23 +104,33 @@ export class UsersTableConfigResolver  {
 
   resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<User>> {
     const routeParams = route.params;
+    const sysAdmin = (route.data as UsersTableRouteData)?.authority === Authority.SYS_ADMIN;
     return this.store.pipe(select(selectAuth), take(1)).pipe(
       tap((auth) => {
         this.authUser = auth.userDetails;
-        this.authority = routeParams.tenantId ? Authority.TENANT_ADMIN : Authority.CUSTOMER_USER;
-        if (this.authority === Authority.TENANT_ADMIN) {
-          this.tenantId = routeParams.tenantId;
+        if (sysAdmin) {
+          this.authority = Authority.SYS_ADMIN;
+          this.tenantId = NULL_UUID;
           this.customerId = NULL_UUID;
-          this.config.entitiesFetchFunction = pageLink => this.userService.getTenantAdmins(this.tenantId, pageLink);
+          this.config.entitiesFetchFunction = pageLink => this.userService.getSysAdmins(pageLink);
         } else {
-          this.tenantId = this.authUser.tenantId.id;
-          this.customerId = routeParams.customerId;
-          this.config.entitiesFetchFunction = pageLink => this.userService.getCustomerUsers(this.customerId, pageLink);
+          this.authority = routeParams.tenantId ? Authority.TENANT_ADMIN : Authority.CUSTOMER_USER;
+          if (this.authority === Authority.TENANT_ADMIN) {
+            this.tenantId = routeParams.tenantId;
+            this.customerId = NULL_UUID;
+            this.config.entitiesFetchFunction = pageLink => this.userService.getTenantAdmins(this.tenantId, pageLink);
+          } else {
+            this.tenantId = this.authUser.tenantId.id;
+            this.customerId = routeParams.customerId;
+            this.config.entitiesFetchFunction = pageLink => this.userService.getCustomerUsers(this.customerId, pageLink);
+          }
         }
         this.updateActionCellDescriptors(auth);
       }),
       mergeMap(() => {
-        if (this.authority === Authority.TENANT_ADMIN) {
+        if (sysAdmin) {
+          return of({title: ''});
+        } else if (this.authority === Authority.TENANT_ADMIN) {
           return this.tenantService.getTenant(this.tenantId);
         } else if (isDefinedAndNotNull(this.customerId)) {
           return this.customerService.getCustomer(this.customerId);
@@ -128,7 +138,9 @@ export class UsersTableConfigResolver  {
         return of({title: ''});
       }),
       map((parentEntity) => {
-        if (this.authority === Authority.TENANT_ADMIN) {
+        if (sysAdmin) {
+          this.config.tableTitle = this.translate.instant('user.sys-admins');
+        } else if (this.authority === Authority.TENANT_ADMIN) {
           this.config.tableTitle = parentEntity.title + ': ' + this.translate.instant('user.tenant-admins');
         } else {
           this.config.tableTitle = parentEntity.title + ': ' + this.translate.instant('user.customer-users');
@@ -140,7 +152,8 @@ export class UsersTableConfigResolver  {
 
   updateActionCellDescriptors(auth: AuthState) {
     this.config.cellActionDescriptors.splice(0);
-    if (auth.userTokenAccessEnabled) {
+    // logging in as a sysadmin isn't supported - the option simply doesn't apply to this table
+    if (this.authority !== Authority.SYS_ADMIN && auth.userTokenAccessEnabled) {
       this.config.cellActionDescriptors.push(
         {
           name: this.authority === Authority.TENANT_ADMIN ?

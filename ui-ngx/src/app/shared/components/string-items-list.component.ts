@@ -99,6 +99,12 @@ export class StringItemsListComponent implements ControlValueAccessor, OnInit {
   requiredText: string;
 
   @Input()
+  itemValidator: (value: string) => boolean;
+
+  @Input()
+  invalidItemText: string;
+
+  @Input()
   floatLabel: FloatLabelType = 'auto';
 
   @Input()
@@ -145,6 +151,13 @@ export class StringItemsListComponent implements ControlValueAccessor, OnInit {
   }
 
   ngOnInit() {
+    this.itemControl.valueChanges.subscribe(() => {
+      if (this.itemsControl.hasError('invalidItem')) {
+        const errors = {...this.itemsControl.errors};
+        delete errors.invalidItem;
+        this.itemsControl.setErrors(Object.keys(errors).length ? errors : null);
+      }
+    });
     if (this.predefinedValues || isDefined(this.fetchOptionsFn)) {
       this.filteredValues = this.itemControl.valueChanges
         .pipe(
@@ -249,6 +262,10 @@ export class StringItemsListComponent implements ControlValueAccessor, OnInit {
     searchText = searchText.trim();
     if (searchText) {
       if (this.allowUserValue || !this.predefinedValues && isUndefined(this.fetchOptionsFn)) {
+        if (this.itemValidator && !this.itemValidator(searchText)) {
+          this.itemsControl.setErrors({...this.itemsControl.errors, invalidItem: true});
+          return;
+        }
         this.add({value: searchText, name: searchText});
       } else if (this.predefinedValues) {
         const findItems = this.predefinedValues

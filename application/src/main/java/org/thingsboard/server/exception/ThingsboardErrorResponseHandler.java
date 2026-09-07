@@ -101,6 +101,7 @@ public class ThingsboardErrorResponseHandler extends ResponseEntityExceptionHand
         errorCodeToStatusMap.put(ThingsboardErrorCode.SUBSCRIPTION_VIOLATION, HttpStatus.FORBIDDEN);
         errorCodeToStatusMap.put(ThingsboardErrorCode.ENTITIES_LIMIT_EXCEEDED, HttpStatus.FORBIDDEN);
         errorCodeToStatusMap.put(ThingsboardErrorCode.VERSION_CONFLICT, HttpStatus.CONFLICT);
+        errorCodeToStatusMap.put(ThingsboardErrorCode.IP_ALLOWLIST_LOCKOUT, HttpStatus.BAD_REQUEST);
     }
 
     private static ThingsboardErrorCode statusToErrorCode(HttpStatus status) {

@@ -15,15 +15,19 @@
  */
 package org.thingsboard.server.dao.sql.user;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.dao.model.sql.UserCredentialsEntity;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -57,5 +61,11 @@ public interface UserCredentialsRepository extends JpaRepository<UserCredentials
 
     @Query("SELECT c FROM UserCredentialsEntity c WHERE c.userId IN (SELECT u.id FROM UserEntity u WHERE u.tenantId = :tenantId)")
     Page<UserCredentialsEntity> findByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
+
+    // locks every credentials row for the given authority so concurrent "disable" calls serialize on the
+    // same set of rows, instead of each racing an independent count-then-act check against a stale count
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM UserCredentialsEntity c WHERE c.userId IN (SELECT u.id FROM UserEntity u WHERE u.authority = :authority)")
+    List<UserCredentialsEntity> findByAuthorityForUpdate(@Param("authority") Authority authority);
 
 }

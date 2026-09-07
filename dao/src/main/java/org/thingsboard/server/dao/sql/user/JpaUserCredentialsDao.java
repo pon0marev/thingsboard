@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.TenantEntityDao;
@@ -30,6 +31,7 @@ import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.user.UserCredentialsDao;
 import org.thingsboard.server.dao.util.SqlDao;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -90,6 +92,11 @@ public class JpaUserCredentialsDao extends JpaAbstractDao<UserCredentialsEntity,
     @Override
     public PageData<UserCredentials> findAllByTenantId(TenantId tenantId, PageLink pageLink) {
         return DaoUtil.toPageData(userCredentialsRepository.findByTenantId(tenantId.getId(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public List<UserCredentials> findByAuthorityForUpdate(Authority authority) {
+        return DaoUtil.convertDataList(userCredentialsRepository.findByAuthorityForUpdate(authority));
     }
 
 }

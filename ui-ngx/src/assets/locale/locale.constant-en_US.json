@@ -525,6 +525,11 @@
             "ip-allowlist": "IP Allowlist",
             "entry-placeholder": "IP address or CIDR block",
             "hint": "CIDR blocks or single IP addresses allowed to log in as a system administrator. Empty means no restriction. Loopback is always allowed.",
+            "invalid-entry": "Enter a valid IP address or CIDR block, e.g. 203.0.113.0/24",
+            "no-restriction-warning": "No restriction configured — any IP address can log in as a system administrator.",
+            "restricted-info": "Login restricted to {{count}} network(s).",
+            "your-ip": "Your current IP address is {{ip}}.",
+            "add-my-ip": "Add my IP",
             "lockout-title": "This may lock you out",
             "save-anyway": "Save anyway"
         },

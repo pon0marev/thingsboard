@@ -154,11 +154,6 @@ public class JpaUserDao extends JpaAbstractDao<UserEntity, User> implements User
     }
 
     @Override
-    public int countEnabledByAuthority(Authority authority) {
-        return userRepository.countEnabledByAuthority(authority);
-    }
-
-    @Override
     public List<User> findUsersByTenantIdAndIds(UUID tenantId, List<UUID> userIds) {
         return DaoUtil.convertDataList(userRepository.findUsersByTenantIdAndIdIn(tenantId, userIds));
     }

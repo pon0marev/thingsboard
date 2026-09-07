@@ -37,7 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -77,13 +76,13 @@ import org.thingsboard.server.dao.settings.AdminSettingsService;
 import org.thingsboard.server.dao.settings.IpAllowlistSettingsService;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.service.security.system.IpAllowlistUtils;
 import org.thingsboard.server.service.security.auth.jwt.settings.JwtSettingsService;
 import org.thingsboard.server.service.security.auth.oauth2.CookieUtils;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.token.JwtTokenFactory;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
+import org.thingsboard.server.service.security.system.IpAllowlistUtils;
 import org.thingsboard.server.service.security.system.SystemSecurityService;
 import org.thingsboard.server.service.sync.vc.EntitiesVersionControlService;
 import org.thingsboard.server.service.sync.vc.autocommit.TbAutoCommitSettingsService;
@@ -196,10 +195,20 @@ public class AdminController extends BaseController {
         return checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings());
     }
 
+    @ApiOperation(value = "Get the caller's IP address (getIpAllowlistCallerIp)",
+            notes = "Returns the IP address this request arrived from, enclosed in double quotes, for display " +
+                    "when configuring the SYS_ADMIN IP allowlist." + SYSTEM_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @GetMapping(value = "/ipAllowlistSettings/callerIp")
+    public String getIpAllowlistCallerIp(HttpServletRequest request) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+        return "\"" + request.getRemoteAddr() + "\"";
+    }
+
     @ApiOperation(value = "Update IP Allowlist Settings (saveIpAllowlistSettings)",
             notes = "Updates the IP Allowlist Settings object that restricts SYS_ADMIN login to trusted networks. " +
-                    "Transitioning from an empty list to a non-empty one is rejected if it would exclude the " +
-                    "caller's own current IP, unless 'force=true' is passed." + SYSTEM_AUTHORITY_PARAGRAPH)
+                    "Saving a non-empty list is rejected if it would exclude the caller's own current IP, " +
+                    "unless 'force=true' is passed." + SYSTEM_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('SYS_ADMIN')")
     @PostMapping(value = "/ipAllowlistSettings")
     public IpAllowlistSettings saveIpAllowlistSettings(
@@ -212,21 +221,19 @@ public class AdminController extends BaseController {
 
         List<String> newAllowlist = ipAllowlistSettings.getIpAllowlist() != null
                 ? ipAllowlistSettings.getIpAllowlist() : Collections.emptyList();
-        for (String entry : newAllowlist) {
-            try {
-                new IpAddressMatcher(entry);
-            } catch (IllegalArgumentException e) {
-                throw new ThingsboardException("Invalid IP address or CIDR block: " + entry, ThingsboardErrorCode.BAD_REQUEST_PARAMS);
-            }
+        try {
+            IpAllowlistUtils.validate(newAllowlist);
+        } catch (IllegalArgumentException e) {
+            throw new ThingsboardException(e.getMessage(), ThingsboardErrorCode.BAD_REQUEST_PARAMS);
         }
 
-        IpAllowlistSettings currentSettings = ipAllowlistSettingsService.getIpAllowlistSettings();
-        boolean wasEmpty = currentSettings.getIpAllowlist() == null || currentSettings.getIpAllowlist().isEmpty();
-        if (wasEmpty && !newAllowlist.isEmpty() && !force) {
+        if (!newAllowlist.isEmpty() && !force) {
             String callerIp = request.getRemoteAddr();
             if (!IpAllowlistUtils.isIpAllowed(newAllowlist, callerIp)) {
-                throw new ThingsboardException("Saving this list would lock out your own current IP (" + callerIp +
-                        "). Include it in the list, or pass force=true to proceed anyway.", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+                // the UI shows this text directly in a confirmation dialog with its own "Save anyway"
+                // button - keep it descriptive only, not API-shaped (no mention of the force parameter)
+                throw new ThingsboardException("Saving this list would lock out your own current IP (" + callerIp + ").",
+                        ThingsboardErrorCode.IP_ALLOWLIST_LOCKOUT);
             }
         }
 

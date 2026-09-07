@@ -120,7 +120,10 @@ export class GlobalHttpInterceptor implements HttpInterceptor {
         unhandled = true;
       }
     } else if (errorResponse.status === 403) {
-      if (!ignoreErrors) {
+      if (req.url === Constants.entryPoints.login) {
+        // e.g. SYS_ADMIN IP allowlist rejection - show the server's specific message, not the generic dialog
+        unhandled = true;
+      } else if (!ignoreErrors) {
         this.dialogService.forbidden();
       }
     } else if (errorResponse.status === 0 || errorResponse.status === -1) {

@@ -71,6 +71,7 @@ import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.dao.sql.JpaExecutorService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
+import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -538,9 +539,24 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
         return userDao.countTenantAdmins(tenantId.getId());
     }
 
+    @Transactional
     @Override
-    public int countEnabledSysAdmins() {
-        return userDao.countEnabledByAuthority(Authority.SYS_ADMIN);
+    public void disableSysAdminCredentials(TenantId tenantId, UserId userId) {
+        log.trace("Executing disableSysAdminCredentials [{}]", userId);
+        validateId(userId, id -> INCORRECT_USER_ID + id);
+        // locks every SYS_ADMIN credentials row so that two concurrent "disable a different sysadmin"
+        // requests can't each read a stale enabled-count of 2 and both proceed, leaving zero enabled
+        List<UserCredentials> sysAdminCredentials = userCredentialsDao.findByAuthorityForUpdate(Authority.SYS_ADMIN);
+        UserCredentials target = sysAdminCredentials.stream()
+                .filter(c -> userId.equals(c.getUserId()))
+                .findFirst()
+                .orElseThrow(() -> new UsernameNotFoundException("User credentials not found"));
+        long enabledCount = sysAdminCredentials.stream().filter(UserCredentials::isEnabled).count();
+        if (target.isEnabled() && enabledCount == 1) {
+            throw new DataValidationException("At least one system administrator must remain enabled!");
+        }
+        target.setEnabled(false);
+        saveUserCredentials(tenantId, target);
     }
 
     @Override

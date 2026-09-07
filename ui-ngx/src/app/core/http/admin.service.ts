@@ -85,6 +85,10 @@ export class AdminService {
       defaultHttpOptionsFromConfig(config));
   }
 
+  public getIpAllowlistCallerIp(config?: RequestConfig): Observable<string> {
+    return this.http.get<string>('/api/admin/ipAllowlistSettings/callerIp', defaultHttpOptionsFromConfig(config));
+  }
+
   public getJwtSettings(config?: RequestConfig): Observable<JwtSettings> {
     return this.http.get<JwtSettings>(`/api/admin/jwtSettings`, defaultHttpOptionsFromConfig(config));
   }
