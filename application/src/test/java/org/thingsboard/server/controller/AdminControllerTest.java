@@ -20,6 +20,7 @@ import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.security.model.JwtSettings;
 import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.service.DaoSqlTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -45,6 +46,7 @@ import static org.thingsboard.server.service.security.auth.oauth2.HttpCookieOAut
 
 @Slf4j
 @DaoSqlTest
+@TestPropertySource(properties = "security.sysadmin_ip_allowlist.provisioned=192.0.2.99")
 public class AdminControllerTest extends AbstractControllerTest {
     final JwtSettings defaultJwtSettings = new JwtSettings(9000, 604800, "thingsboard.io", "QmlicmJkZk9tSzZPVFozcWY0Sm94UVhybmtBWXZ5YmZMOUZSZzZvcUFiOVhsb3VHUThhUWJGaXp3UHhtcGZ6Tw==");
 
@@ -247,6 +249,24 @@ public class AdminControllerTest extends AbstractControllerTest {
     }
 
     @Test
+    public void testGetIpAllowlistSettingsExposesProvisionedListReadOnly() throws Exception {
+        loginSysAdmin();
+        IpAllowlistSettings settings = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
+        Assert.assertEquals(List.of("192.0.2.99"), settings.getProvisionedIpAllowlist());
+
+        // a client-supplied value is ignored - it's never persisted or echoed back as saved
+        try {
+            IpAllowlistSettings attempt = new IpAllowlistSettings();
+            attempt.setIpAllowlist(List.of());
+            attempt.setProvisionedIpAllowlist(List.of("203.0.113.1"));
+            IpAllowlistSettings saved = doPost("/api/admin/ipAllowlistSettings", attempt, IpAllowlistSettings.class);
+            Assert.assertEquals(List.of("192.0.2.99"), saved.getProvisionedIpAllowlist());
+        } finally {
+            clearIpAllowlist();
+        }
+    }
+
+    @Test
     public void testSaveIpAllowlistSettingsRejectsMalformedEntry() throws Exception {
         loginSysAdmin();
         // malformed entry rejected at save time, before it ever reaches storage
@@ -306,6 +326,21 @@ public class AdminControllerTest extends AbstractControllerTest {
         try {
             // same excluded-IP transition as the rejection test above, but with force=true
             saveIpAllowlist(List.of("203.0.113.0/24"), "198.51.100.7", true).andExpect(status().isOk());
+
+            IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
+            Assert.assertEquals(List.of("203.0.113.0/24"), saved.getIpAllowlist());
+        } finally {
+            clearIpAllowlist();
+        }
+    }
+
+    @Test
+    public void testSaveIpAllowlistSettingsProvisionedCallerBypassesLockoutGuard() throws Exception {
+        loginSysAdmin();
+        try {
+            // caller's IP is excluded from the new list, but it's in the provisioned allowlist
+            // (configured via security.sysadmin_ip_allowlist.provisioned above) - no force needed
+            saveIpAllowlist(List.of("203.0.113.0/24"), "192.0.2.99", false).andExpect(status().isOk());
 
             IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
             Assert.assertEquals(List.of("203.0.113.0/24"), saved.getIpAllowlist());

@@ -249,6 +249,13 @@ security:
       # If true, uses Content-Security-Policy-Report-Only header instead — the browser
       # reports violations but does not enforce them. Use for testing before enforcing.
       report-only: "${SECURITY_HEADERS_CONTENT_SECURITY_POLICY_REPORT_ONLY:false}"
+  # SYS_ADMIN IP allowlist: comma-separated IPs/CIDR blocks always allowed to log in as a system
+  # administrator, in addition to loopback and the DB-managed allowlist configured via the UI.
+  # Not editable via the UI/API - an ops-only escape hatch so admins are never locked out by their
+  # own allowlist changes, e.g. in Docker deployments where the caller's real address never reaches
+  # the app as 127.0.0.1 (Docker's port publishing NATs it to the bridge gateway address instead).
+  sysadmin_ip_allowlist:
+    provisioned: "${SECURITY_SYSADMIN_IP_ALLOWLIST_PROVISIONED:}"
 
 # Mail settings parameters
 # Controls mail sending, OAuth2 token refresh interval, and per-tenant rate limiting for email delivery.

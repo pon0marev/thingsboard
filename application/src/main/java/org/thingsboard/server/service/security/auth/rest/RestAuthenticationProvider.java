@@ -39,6 +39,7 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 import org.thingsboard.server.service.security.permission.UserPermissionsService;
 import org.thingsboard.server.service.security.system.IpAllowlistUtils;
+import org.thingsboard.server.service.security.system.ProvisionedIpAllowlist;
 import org.thingsboard.server.service.security.system.SystemSecurityService;
 
 @Component
@@ -49,6 +50,7 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
     private final SystemSecurityService systemSecurityService;
     private final SecuritySettingsService securitySettingsService;
     private final IpAllowlistSettingsService ipAllowlistSettingsService;
+    private final ProvisionedIpAllowlist provisionedIpAllowlist;
     private final UserService userService;
     private final UserPermissionsService userPermissionsService;
     private final TwoFactorAuthService twoFactorAuthService;
@@ -59,6 +61,7 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
                                       final SystemSecurityService systemSecurityService,
                                       SecuritySettingsService securitySettingsService,
                                       IpAllowlistSettingsService ipAllowlistSettingsService,
+                                      ProvisionedIpAllowlist provisionedIpAllowlist,
                                       TwoFactorAuthService twoFactorAuthService) {
         super(customerService, null, userPermissionsService);
         this.userService = userService;
@@ -66,6 +69,7 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
         this.systemSecurityService = systemSecurityService;
         this.securitySettingsService = securitySettingsService;
         this.ipAllowlistSettingsService = ipAllowlistSettingsService;
+        this.provisionedIpAllowlist = provisionedIpAllowlist;
         this.twoFactorAuthService = twoFactorAuthService;
     }
 
@@ -124,7 +128,7 @@ public class RestAuthenticationProvider extends AbstractAuthenticationProvider {
             if (user.getAuthority() == Authority.SYS_ADMIN) {
                 String clientIp = ((RestAuthenticationDetails) authentication.getDetails()).getClientAddress();
                 IpAllowlistSettings ipAllowlistSettings = ipAllowlistSettingsService.getIpAllowlistSettings();
-                if (!IpAllowlistUtils.isIpAllowed(ipAllowlistSettings.getIpAllowlist(), clientIp)) {
+                if (!IpAllowlistUtils.isIpAllowed(ipAllowlistSettings.getIpAllowlist(), provisionedIpAllowlist.get(), clientIp)) {
                     throw new IpNotAllowedException("Login for system administrators is not allowed from this IP address");
                 }
             }

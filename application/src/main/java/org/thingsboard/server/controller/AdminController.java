@@ -76,6 +76,7 @@ import org.thingsboard.server.service.security.auth.oauth2.PrevUriValidator;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.token.JwtTokenFactory;
 import org.thingsboard.server.service.security.system.IpAllowlistUtils;
+import org.thingsboard.server.service.security.system.ProvisionedIpAllowlist;
 import org.thingsboard.server.service.security.system.SystemSecurityService;
 import org.thingsboard.server.service.sync.vc.EntitiesVersionControlService;
 import org.thingsboard.server.service.sync.vc.autocommit.TbAutoCommitSettingsService;
@@ -106,6 +107,7 @@ public class AdminController extends BaseController {
     private final SystemSecurityService systemSecurityService;
     private final SecuritySettingsService securitySettingsService;
     private final IpAllowlistSettingsService ipAllowlistSettingsService;
+    private final ProvisionedIpAllowlist provisionedIpAllowlist;
     private final JwtSettingsService jwtSettingsService;
     private final JwtTokenFactory tokenFactory;
     private final EntitiesVersionControlService versionControlService;
@@ -201,12 +203,15 @@ public class AdminController extends BaseController {
 
     @ApiOperation(value = "Get the IP Allowlist Settings object (getIpAllowlistSettings)",
             notes = "Get the IP Allowlist Settings object that restricts SYS_ADMIN login to trusted networks. " +
-                    "An empty list means no restriction. Loopback is always allowed." + SYSTEM_AUTHORITY_PARAGRAPH)
+                    "An empty list means no restriction. Loopback is always allowed. Also includes the " +
+                    "server-provisioned allowlist (read-only, configured outside this API)." + SYSTEM_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('SYS_ADMIN')")
     @GetMapping(value = "/ipAllowlistSettings")
     public IpAllowlistSettings getIpAllowlistSettings() throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
-        return checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings());
+        IpAllowlistSettings settings = checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings());
+        settings.setProvisionedIpAllowlist(provisionedIpAllowlist.get());
+        return settings;
     }
 
     @ApiOperation(value = "Get the caller's IP address (getIpAllowlistCallerIp)",
@@ -243,7 +248,7 @@ public class AdminController extends BaseController {
 
         if (!newAllowlist.isEmpty() && !force) {
             String callerIp = request.getRemoteAddr();
-            if (!IpAllowlistUtils.isIpAllowed(newAllowlist, callerIp)) {
+            if (!IpAllowlistUtils.isIpAllowed(newAllowlist, provisionedIpAllowlist.get(), callerIp)) {
                 // the UI shows this text directly in a confirmation dialog with its own "Save anyway"
                 // button - keep it descriptive only, not API-shaped (no mention of the force parameter)
                 throw new ThingsboardException("Saving this list would lock out your own current IP (" + callerIp + ").",
@@ -252,7 +257,11 @@ public class AdminController extends BaseController {
         }
 
         ipAllowlistSettings.setIpAllowlist(newAllowlist);
-        return checkNotNull(ipAllowlistSettingsService.saveIpAllowlistSettings(ipAllowlistSettings));
+        // provisionedIpAllowlist is read-only and server-config-driven - never persist a client-supplied value
+        ipAllowlistSettings.setProvisionedIpAllowlist(null);
+        IpAllowlistSettings saved = checkNotNull(ipAllowlistSettingsService.saveIpAllowlistSettings(ipAllowlistSettings));
+        saved.setProvisionedIpAllowlist(provisionedIpAllowlist.get());
+        return saved;
     }
 
     @ApiOperation(value = "Get the JWT Settings object (getJwtSettings)",

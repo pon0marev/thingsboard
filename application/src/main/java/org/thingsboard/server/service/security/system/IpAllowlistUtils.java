@@ -41,16 +41,26 @@ public final class IpAllowlistUtils {
         }
     }
 
-    // loopback is always allowed (break-glass path for direct server access), and an empty/null
-    // list means "no restriction configured" - both independent of whatever the list contains
-    public static boolean isIpAllowed(List<String> ipAllowlist, String clientIp) {
+    // loopback is always allowed (break-glass path for direct server access); the provisioned
+    // allowlist is an ops-only, config-driven supplement that is not editable via the UI/API and is
+    // always allowed regardless of the DB-managed list - this covers deployments (e.g. behind Docker
+    // NAT) where the caller's real loopback address never reaches the app as 127.0.0.1; an empty/null
+    // DB-managed list means "no restriction configured" - all independent of whatever the list contains
+    public static boolean isIpAllowed(List<String> ipAllowlist, List<String> provisionedAllowlist, String clientIp) {
         if (isLoopback(clientIp)) {
+            return true;
+        }
+        if (matchesAny(provisionedAllowlist, clientIp)) {
             return true;
         }
         if (ipAllowlist == null || ipAllowlist.isEmpty()) {
             return true;
         }
-        return ipAllowlist.stream().anyMatch(entry -> new IpAddressMatcher(entry).matches(clientIp));
+        return matchesAny(ipAllowlist, clientIp);
+    }
+
+    private static boolean matchesAny(List<String> allowlist, String clientIp) {
+        return allowlist != null && allowlist.stream().anyMatch(entry -> new IpAddressMatcher(entry).matches(clientIp));
     }
 
     private static boolean isLoopback(String clientIp) {

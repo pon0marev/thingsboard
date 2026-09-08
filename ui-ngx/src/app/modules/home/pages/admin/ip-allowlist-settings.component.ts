@@ -76,11 +76,24 @@ export class IpAllowlistSettingsComponent extends PageComponent implements HasCo
     return !!this.currentAllowlist?.length;
   }
 
+  get provisionedIpAllowlist(): string[] {
+    return this.ipAllowlistSettings?.provisionedIpAllowlist ?? [];
+  }
+
+  get allowedNetworksCount(): number {
+    // the provisioned list is also always allowed once the editable list is non-empty (isRestricted) -
+    // dedupe in case the same entry appears in both, so it isn't counted twice
+    return new Set([...(this.currentAllowlist ?? []), ...this.provisionedIpAllowlist]).size;
+  }
+
   get showCallerIpHint(): boolean {
     // shown regardless of isRestricted (not just when the list is empty) - editing an already-restricted
     // list can lock the caller out just as easily as configuring one for the first time. But once the
-    // caller's own IP is actually in the list, there's nothing left to add and no lockout risk to flag
-    return !!this.callerIp && !this.currentAllowlist?.includes(this.callerIp);
+    // caller's own IP is actually in the editable list, or already covered by the provisioned list
+    // (always allowed, server-configured), there's no lockout risk left to flag
+    return !!this.callerIp
+      && !this.currentAllowlist?.includes(this.callerIp)
+      && !this.provisionedIpAllowlist.includes(this.callerIp);
   }
 
   addCallerIp(): void {

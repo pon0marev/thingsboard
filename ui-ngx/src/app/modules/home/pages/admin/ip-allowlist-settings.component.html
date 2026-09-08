@@ -36,7 +36,7 @@
           <div class="flex flex-row items-center gap-2 tb-ip-allowlist-banner">
             <mat-icon [color]="isRestricted ? 'primary' : 'warn'">{{ isRestricted ? 'lock' : 'lock_open' }}</mat-icon>
             @if (isRestricted) {
-              <span>{{ 'admin.ip-allowlist.restricted-info' | translate: {count: currentAllowlist.length} }}</span>
+              <span>{{ 'admin.ip-allowlist.restricted-info' | translate: {count: allowedNetworksCount} }}</span>
             } @else {
               <span>{{ 'admin.ip-allowlist.no-restriction-warning' | translate }}</span>
             }
@@ -50,6 +50,23 @@
               </button>
             </div>
           }
+        }
+        @if (provisionedIpAllowlist.length) {
+          <div class="flex flex-col gap-1 tb-provisioned-ip-allowlist">
+            <span class="flex flex-row items-center gap-1 tb-hint">
+              {{ 'admin.ip-allowlist.provisioned-info' | translate }}
+              <mat-icon class="tb-mat-16" [matTooltip]="'admin.ip-allowlist.provisioned-info-tooltip' | translate">
+                help_outline
+              </mat-icon>
+            </span>
+            <mat-chip-set>
+              @for (ip of provisionedIpAllowlist; track ip) {
+                <mat-chip-row [removable]="false">
+                  <span>{{ ip }}</span>
+                </mat-chip-row>
+              }
+            </mat-chip-set>
+          </div>
         }
         <tb-string-items-list
           appearance="outline"

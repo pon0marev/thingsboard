@@ -160,6 +160,7 @@ export interface JwtSettings {
 
 export interface IpAllowlistSettings {
   ipAllowlist: string[];
+  provisionedIpAllowlist?: string[];
 }
 
 export interface UpdateMessage {

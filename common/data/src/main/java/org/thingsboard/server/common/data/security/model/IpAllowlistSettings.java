@@ -33,4 +33,9 @@ public class IpAllowlistSettings implements Serializable {
             "Empty or null means no restriction. Loopback is always allowed regardless of this list.")
     private List<String> ipAllowlist;
 
+    @Schema(description = "Read-only. CIDR blocks or single IP addresses provisioned via server configuration, " +
+            "always allowed to log in as SYS_ADMIN regardless of 'ipAllowlist'. Not editable through this API - " +
+            "any value sent here is ignored.", accessMode = Schema.AccessMode.READ_ONLY)
+    private List<String> provisionedIpAllowlist;
+
 }
