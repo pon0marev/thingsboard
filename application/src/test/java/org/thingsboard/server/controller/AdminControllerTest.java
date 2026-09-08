@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -51,12 +50,6 @@ public class AdminControllerTest extends AbstractControllerTest {
 
     @MockitoBean
     private SecretConfigurationService secretConfigurationService;
-
-    @After
-    public void clearIpAllowlist() throws Exception {
-        loginSysAdmin();
-        saveIpAllowlist(List.of(), "127.0.0.1", true).andExpect(status().isOk());
-    }
 
     @Test
     public void testFindAdminSettingsByKey() throws Exception {
@@ -277,36 +270,55 @@ public class AdminControllerTest extends AbstractControllerTest {
     @Test
     public void testSaveIpAllowlistSettingsSucceedsWhenCallerIpIncluded() throws Exception {
         loginSysAdmin();
-        saveIpAllowlist(List.of("198.51.100.0/24"), "198.51.100.7", false).andExpect(status().isOk());
+        try {
+            saveIpAllowlist(List.of("198.51.100.0/24"), "198.51.100.7", false).andExpect(status().isOk());
 
-        IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
-        Assert.assertEquals(List.of("198.51.100.0/24"), saved.getIpAllowlist());
+            IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
+            Assert.assertEquals(List.of("198.51.100.0/24"), saved.getIpAllowlist());
+        } finally {
+            clearIpAllowlist();
+        }
     }
 
     @Test
     public void testSaveIpAllowlistSettingsRevalidatesEveryEditNotJustTheFirstRestriction() throws Exception {
         loginSysAdmin();
-        // start from a non-empty, caller-inclusive list
-        saveIpAllowlist(List.of("198.51.100.0/24"), "198.51.100.7", false).andExpect(status().isOk());
+        try {
+            // start from a non-empty, caller-inclusive list
+            saveIpAllowlist(List.of("198.51.100.0/24"), "198.51.100.7", false).andExpect(status().isOk());
 
-        // editing an already-restricted list to one that would now exclude the caller is rejected too,
-        // not just the first empty-to-non-empty transition
-        String lockoutError = getErrorMessage(
-                saveIpAllowlist(List.of("203.0.113.0/24"), "198.51.100.7", false).andExpect(status().isBadRequest()));
-        assertThat(lockoutError).containsIgnoringCase("lock out");
+            // editing an already-restricted list to one that would now exclude the caller is rejected too,
+            // not just the first empty-to-non-empty transition
+            String lockoutError = getErrorMessage(
+                    saveIpAllowlist(List.of("203.0.113.0/24"), "198.51.100.7", false).andExpect(status().isBadRequest()));
+            assertThat(lockoutError).containsIgnoringCase("lock out");
 
-        IpAllowlistSettings unchanged = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
-        Assert.assertEquals(List.of("198.51.100.0/24"), unchanged.getIpAllowlist());
+            IpAllowlistSettings unchanged = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
+            Assert.assertEquals(List.of("198.51.100.0/24"), unchanged.getIpAllowlist());
+        } finally {
+            clearIpAllowlist();
+        }
     }
 
     @Test
     public void testSaveIpAllowlistSettingsForceOverridesLockoutGuard() throws Exception {
         loginSysAdmin();
-        // same excluded-IP transition as the rejection test above, but with force=true
-        saveIpAllowlist(List.of("203.0.113.0/24"), "198.51.100.7", true).andExpect(status().isOk());
+        try {
+            // same excluded-IP transition as the rejection test above, but with force=true
+            saveIpAllowlist(List.of("203.0.113.0/24"), "198.51.100.7", true).andExpect(status().isOk());
 
-        IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
-        Assert.assertEquals(List.of("203.0.113.0/24"), saved.getIpAllowlist());
+            IpAllowlistSettings saved = doGet("/api/admin/ipAllowlistSettings", IpAllowlistSettings.class);
+            Assert.assertEquals(List.of("203.0.113.0/24"), saved.getIpAllowlist());
+        } finally {
+            clearIpAllowlist();
+        }
+    }
+
+    // only the tests above that actually leave the allowlist non-empty need this - not an @After,
+    // so the ~20 unrelated tests in this class don't each pay for an extra login + POST round trip
+    private void clearIpAllowlist() throws Exception {
+        loginSysAdmin();
+        saveIpAllowlist(List.of(), "127.0.0.1", true).andExpect(status().isOk());
     }
 
     private ResultActions saveIpAllowlist(List<String> ipAllowlist, String remoteAddr, boolean force) throws Exception {

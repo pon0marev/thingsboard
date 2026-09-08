@@ -589,10 +589,7 @@ public class UserControllerTest extends AbstractControllerTest {
     public void testGetSysAdmins() throws Exception {
         loginSysAdmin();
 
-        User sysAdmin2 = new User();
-        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
-        sysAdmin2.setEmail("sysadmin2@thingsboard.org");
-        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+        User sysAdmin2 = createSysAdmin("sysadmin2@thingsboard.org");
 
         List<User> loadedSysAdmins = new ArrayList<>();
         PageLink pageLink = new PageLink(10);
@@ -619,10 +616,7 @@ public class UserControllerTest extends AbstractControllerTest {
     public void testGetSysAdminsByEmail() throws Exception {
         loginSysAdmin();
 
-        User sysAdmin2 = new User();
-        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
-        sysAdmin2.setEmail("findmeplease@thingsboard.org");
-        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+        User sysAdmin2 = createSysAdmin("findmeplease@thingsboard.org");
 
         PageData<User> pageData = doGetTypedWithPageLink("/api/sysadmins?",
                 new TypeReference<PageData<User>>() {
@@ -641,10 +635,7 @@ public class UserControllerTest extends AbstractControllerTest {
         loginSysAdmin();
         User currentSysAdmin = doGet("/api/auth/user", User.class);
 
-        User sysAdmin2 = new User();
-        sysAdmin2.setAuthority(Authority.SYS_ADMIN);
-        sysAdmin2.setEmail("sysadmin2@thingsboard.org");
-        sysAdmin2 = doPost("/api/user", sysAdmin2, User.class);
+        User sysAdmin2 = createSysAdmin("sysadmin2@thingsboard.org");
 
         // disable second sysadmin - ok, the original stays enabled
         doPost("/api/user/" + sysAdmin2.getId().getId().toString() + "/userCredentialsEnabled?userCredentialsEnabled=false")
@@ -660,6 +651,13 @@ public class UserControllerTest extends AbstractControllerTest {
 
         doDelete("/api/user/" + sysAdmin2.getId().getId().toString())
                 .andExpect(status().isOk());
+    }
+
+    private User createSysAdmin(String email) throws Exception {
+        User sysAdmin = new User();
+        sysAdmin.setAuthority(Authority.SYS_ADMIN);
+        sysAdmin.setEmail(email);
+        return doPost("/api/user", sysAdmin, User.class);
     }
 
     @Test

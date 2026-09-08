@@ -57,6 +57,54 @@ export function isLocalUrl(url: string): boolean {
   return host === 'localhost' || host === '127.0.0.1';
 }
 
+function isValidIpv4(address: string): boolean {
+  const parts = address.split('.');
+  return parts.length === 4 && parts.every(part =>
+    /^\d{1,3}$/.test(part) && Number(part) <= 255 && (part.length === 1 || part[0] !== '0'));
+}
+
+function isValidIpv6(address: string): boolean {
+  if (!address.includes(':') || (address.match(/::/g) || []).length > 1) {
+    return false;
+  }
+  const ipv4Suffix = /:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(address);
+  let hexPart = address;
+  let groupCount = 0;
+  if (ipv4Suffix) {
+    if (!isValidIpv4(ipv4Suffix[1])) {
+      return false;
+    }
+    hexPart = address.slice(0, -ipv4Suffix[1].length - 1);
+    groupCount += 2;
+  }
+  const compressed = hexPart.includes('::');
+  const groups = hexPart.split(':').filter(g => g !== '');
+  if (!groups.every(g => /^[0-9a-fA-F]{1,4}$/.test(g))) {
+    return false;
+  }
+  groupCount += groups.length;
+  return compressed ? groupCount < 8 : groupCount === 8;
+}
+
+// best-effort client-side check only - the backend's IpAddressMatcher is the authoritative validator
+export function isValidIpOrCidr(value: string): boolean {
+  const parts = value.split('/');
+  if (parts.length > 2) {
+    return false;
+  }
+  const [address, prefix] = parts;
+  if (prefix !== undefined && !/^\d{1,3}$/.test(prefix)) {
+    return false;
+  }
+  if (isValidIpv4(address)) {
+    return prefix === undefined || Number(prefix) <= 32;
+  }
+  if (isValidIpv6(address)) {
+    return prefix === undefined || Number(prefix) <= 128;
+  }
+  return false;
+}
+
 export function animatedScroll(element: HTMLElement, scrollTop: number, delay?: number) {
   let currentTime = 0;
   const increment = 20;
