@@ -304,8 +304,9 @@ public class ThingsboardErrorResponseHandler extends ResponseEntityExceptionHand
         } else if (authenticationException instanceof CredentialsExpiredException credentialsExpiredException) {
             JacksonUtil.writeValue(response.getWriter(), ThingsboardCredentialsViolationResponse.of(credentialsExpiredException.getMessage(), ThingsboardErrorCode.AUTHENTICATION, HttpStatus.UNAUTHORIZED));
         } else if (authenticationException instanceof IpNotAllowedException ipNotAllowedException) {
-            response.setStatus(HttpStatus.FORBIDDEN.value());
-            JacksonUtil.writeValue(response.getWriter(), ThingsboardErrorResponse.of(ipNotAllowedException.getMessage(), ThingsboardErrorCode.AUTHENTICATION, HttpStatus.FORBIDDEN));
+            // the only branch here returning a non-401 status, so it can't rely on the UNAUTHORIZED
+            // set at the top of this method - writeResponse derives the status from the response itself
+            writeResponse(ThingsboardErrorResponse.of(ipNotAllowedException.getMessage(), ThingsboardErrorCode.AUTHENTICATION, HttpStatus.FORBIDDEN), response);
         } else {
             JacksonUtil.writeValue(response.getWriter(), ThingsboardErrorResponse.of("Authentication failed", ThingsboardErrorCode.AUTHENTICATION, HttpStatus.UNAUTHORIZED));
         }

@@ -16,6 +16,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
@@ -35,6 +37,7 @@ import org.thingsboard.server.common.data.permission.ShareGroupRequest;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.role.RoleType;
 import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.wl.LoginWhiteLabelingParams;
 import org.thingsboard.server.common.data.wl.WhiteLabelingParams;
 
@@ -48,6 +51,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ActiveProfiles("test")
@@ -298,6 +302,24 @@ public abstract class AbstractControllerTest extends AbstractNotifyEntityTest {
 
     protected TbTestWebSocketClient buildWebSocketClient(String path) throws URISyntaxException {
         return new TbTestWebSocketClient(new URI(WS_URL + serverPort + path));
+    }
+
+    // shared by AdminControllerTest and AuthControllerTest, which both exercise this endpoint -
+    // built directly rather than via doPost(url, content, String...), since that overload's
+    // trailing String... is wired as URI template variables, not query params
+    protected ResultActions saveIpAllowlist(List<String> ipAllowlist, String remoteAddr, boolean force) throws Exception {
+        IpAllowlistSettings settings = new IpAllowlistSettings();
+        settings.setIpAllowlist(ipAllowlist);
+        MockHttpServletRequestBuilder request = post("/api/admin/ipAllowlistSettings").param("force", String.valueOf(force));
+        setJwtToken(request);
+        request.contentType(contentType).content(json(settings));
+        if (remoteAddr != null) {
+            request.with(req -> {
+                req.setRemoteAddr(remoteAddr);
+                return req;
+            });
+        }
+        return mockMvc.perform(request);
     }
 
 }

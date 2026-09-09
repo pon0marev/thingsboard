@@ -20,7 +20,6 @@ import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public final class IpAllowlistUtils {
 

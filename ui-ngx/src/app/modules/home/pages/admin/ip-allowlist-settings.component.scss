@@ -18,18 +18,7 @@
     margin-bottom: 12px;
   }
 
-  .tb-provisioned-ip-allowlist {
-    padding: 8px 12px;
-    margin-bottom: 12px;
-    border: 1px solid rgba(0, 0, 0, .12);
-    border-radius: 4px;
-    background-color: rgba(0, 0, 0, .04);
-
-    mat-icon {
-      color: rgba(0, 0, 0, .54);
-    }
-  }
-
+  .tb-provisioned-ip-allowlist,
   .tb-caller-ip-hint {
     padding: 8px 12px;
     margin-bottom: 12px;

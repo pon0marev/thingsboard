@@ -128,6 +128,12 @@ public interface UserService extends EntityDaoService {
 
     int countUsersByTenantIdAndRoleIdAndIdNotIn(TenantId tenantId, RoleId roleId, List<UserId> userIds);
 
+    /**
+     * Does NOT guard against disabling the last enabled SYS_ADMIN - passing enabled=false for a
+     * SYS_ADMIN bypasses that check. Callers that explicitly disable a SYS_ADMIN account (as opposed
+     * to the automatic failed-login/2FA lockout path, which intentionally bypasses the guard) should
+     * use {@link #disableSysAdminCredentials} instead.
+     */
     void setUserCredentialsEnabled(TenantId tenantId, UserId userId, boolean enabled);
 
     /**

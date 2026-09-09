@@ -209,9 +209,7 @@ public class AdminController extends BaseController {
     @GetMapping(value = "/ipAllowlistSettings")
     public IpAllowlistSettings getIpAllowlistSettings() throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
-        IpAllowlistSettings settings = checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings());
-        settings.setProvisionedIpAllowlist(provisionedIpAllowlist.get());
-        return settings;
+        return withProvisionedIpAllowlist(checkNotNull(ipAllowlistSettingsService.getIpAllowlistSettings()));
     }
 
     @ApiOperation(value = "Get the caller's IP address (getIpAllowlistCallerIp)",
@@ -221,6 +219,9 @@ public class AdminController extends BaseController {
     @GetMapping(value = "/ipAllowlistSettings/callerIp")
     public String getIpAllowlistCallerIp(HttpServletRequest request) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+        // String is written by StringHttpMessageConverter regardless of the declared media type (its
+        // default supported types include */*), so Jackson never gets a chance to add the quoting a
+        // JSON string needs - hence doing it by hand here
         return "\"" + request.getRemoteAddr() + "\"";
     }
 
@@ -259,9 +260,12 @@ public class AdminController extends BaseController {
         ipAllowlistSettings.setIpAllowlist(newAllowlist);
         // provisionedIpAllowlist is read-only and server-config-driven - never persist a client-supplied value
         ipAllowlistSettings.setProvisionedIpAllowlist(null);
-        IpAllowlistSettings saved = checkNotNull(ipAllowlistSettingsService.saveIpAllowlistSettings(ipAllowlistSettings));
-        saved.setProvisionedIpAllowlist(provisionedIpAllowlist.get());
-        return saved;
+        return withProvisionedIpAllowlist(checkNotNull(ipAllowlistSettingsService.saveIpAllowlistSettings(ipAllowlistSettings)));
+    }
+
+    private IpAllowlistSettings withProvisionedIpAllowlist(IpAllowlistSettings settings) {
+        settings.setProvisionedIpAllowlist(provisionedIpAllowlist.get());
+        return settings;
     }
 
     @ApiOperation(value = "Get the JWT Settings object (getJwtSettings)",

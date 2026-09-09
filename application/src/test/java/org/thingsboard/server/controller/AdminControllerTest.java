@@ -21,8 +21,6 @@ import org.thingsboard.server.common.data.security.model.JwtSettings;
 import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.service.DaoSqlTest;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -37,7 +35,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -354,19 +351,6 @@ public class AdminControllerTest extends AbstractControllerTest {
     private void clearIpAllowlist() throws Exception {
         loginSysAdmin();
         saveIpAllowlist(List.of(), "127.0.0.1", true).andExpect(status().isOk());
-    }
-
-    private ResultActions saveIpAllowlist(List<String> ipAllowlist, String remoteAddr, boolean force) throws Exception {
-        IpAllowlistSettings settings = new IpAllowlistSettings();
-        settings.setIpAllowlist(ipAllowlist);
-        MockHttpServletRequestBuilder request = post("/api/admin/ipAllowlistSettings" + (force ? "?force=true" : ""));
-        setJwtToken(request);
-        request.contentType(contentType).content(json(settings));
-        request.with(req -> {
-            req.setRemoteAddr(remoteAddr);
-            return req;
-        });
-        return mockMvc.perform(request);
     }
 
 }

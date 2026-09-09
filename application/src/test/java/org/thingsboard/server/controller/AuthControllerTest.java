@@ -11,7 +11,6 @@ import org.mockito.Mockito;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.HttpHeaders;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.StringUtils;
@@ -21,7 +20,6 @@ import org.thingsboard.server.common.data.UserInfo;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
-import org.thingsboard.server.common.data.security.model.IpAllowlistSettings;
 import org.thingsboard.server.common.data.security.model.SecuritySettings;
 import org.thingsboard.server.dao.service.DaoSqlTest;
 import org.thingsboard.server.dao.user.UserCredentialsDao;
@@ -301,7 +299,7 @@ public class AuthControllerTest extends AbstractControllerTest {
     @Test
     public void testSysAdminLoginBlockedByIpAllowlist() throws Exception {
         loginSysAdmin();
-        saveIpAllowlist(ipAllowlistOf("198.51.100.0/24")).andExpect(status().isOk());
+        saveIpAllowlist(List.of("198.51.100.0/24"), null, true).andExpect(status().isOk());
 
         try {
             // login from an IP outside the configured list - rejected before password verification
@@ -340,24 +338,8 @@ public class AuthControllerTest extends AbstractControllerTest {
                     .andExpect(status().isOk());
         } finally {
             loginSysAdmin();
-            saveIpAllowlist(ipAllowlistOf()).andExpect(status().isOk());
+            saveIpAllowlist(List.of(), null, true).andExpect(status().isOk());
         }
-    }
-
-    private IpAllowlistSettings ipAllowlistOf(String... entries) {
-        IpAllowlistSettings settings = new IpAllowlistSettings();
-        settings.setIpAllowlist(List.of(entries));
-        return settings;
-    }
-
-    // doPost(url, content, String...) treats trailing String... as URI template variables, not
-    // query params (populateParams/request.params(...) is only wired into the no-content overload)
-    // - build the request directly to get a real "?force=true" on the query string
-    private ResultActions saveIpAllowlist(IpAllowlistSettings settings) throws Exception {
-        MockHttpServletRequestBuilder request = post("/api/admin/ipAllowlistSettings").param("force", "true");
-        setJwtToken(request);
-        request.contentType(contentType).content(json(settings));
-        return mockMvc.perform(request);
     }
 
     private void updateSecuritySettings(Consumer<SecuritySettings> updater) throws Exception {

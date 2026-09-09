@@ -635,7 +635,12 @@ public class UserControllerTest extends AbstractControllerTest {
         loginSysAdmin();
         User currentSysAdmin = doGet("/api/auth/user", User.class);
 
-        User sysAdmin2 = createSysAdmin("sysadmin2@thingsboard.org");
+        User sysAdmin2Draft = new User();
+        sysAdmin2Draft.setAuthority(Authority.SYS_ADMIN);
+        sysAdmin2Draft.setEmail("sysadmin2@thingsboard.org");
+        // activated (not just created via createSysAdmin) - re-enabling below requires a password on
+        // the credentials, which an un-activated user doesn't have
+        User sysAdmin2 = createUserAndActivate(sysAdmin2Draft, "testPassword1");
 
         // disable second sysadmin - ok, the original stays enabled
         doPost("/api/user/" + sysAdmin2.getId().getId().toString() + "/userCredentialsEnabled?userCredentialsEnabled=false")
@@ -648,6 +653,8 @@ public class UserControllerTest extends AbstractControllerTest {
 
         // the guard only ever inspects the disable path (userCredentialsEnabled=false) - enabling
         // is never gated by it, regardless of who's left enabled
+        doPost("/api/user/" + sysAdmin2.getId().getId().toString() + "/userCredentialsEnabled?userCredentialsEnabled=true")
+                .andExpect(status().isOk());
 
         doDelete("/api/user/" + sysAdmin2.getId().getId().toString())
                 .andExpect(status().isOk());

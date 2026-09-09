@@ -20,8 +20,29 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class IpAllowlistUtilsTest {
+
+    @Test
+    public void validate_wellFormedList_doesNotThrow() {
+        assertThatCode(() -> IpAllowlistUtils.validate(List.of("203.0.113.0/24", "8.8.8.8", "::1")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    public void validate_malformedEntry_throwsNamingIt() {
+        assertThatThrownBy(() -> IpAllowlistUtils.validate(List.of("203.0.113.0/24", "not-an-ip")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not-an-ip");
+    }
+
+    @Test
+    public void validate_cidrWithOutOfRangePrefix_throws() {
+        assertThatThrownBy(() -> IpAllowlistUtils.validate(List.of("203.0.113.0/33")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 
     @Test
     public void loopbackIsAlwaysAllowed_evenWithARestrictiveList() {
