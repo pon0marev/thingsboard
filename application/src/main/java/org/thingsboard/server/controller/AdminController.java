@@ -227,8 +227,9 @@ public class AdminController extends BaseController {
 
     @ApiOperation(value = "Update IP Allowlist Settings (saveIpAllowlistSettings)",
             notes = "Updates the IP Allowlist Settings object that restricts SYS_ADMIN login to trusted networks. " +
-                    "Saving a non-empty list is rejected if it would exclude the caller's own current IP, " +
-                    "unless 'force=true' is passed." + SYSTEM_AUTHORITY_PARAGRAPH)
+                    "Rejected if it would exclude the caller's own current IP - accounting for the " +
+                    "server-provisioned allowlist, which restricts login on its own even when this list is " +
+                    "empty - unless 'force=true' is passed." + SYSTEM_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('SYS_ADMIN')")
     @PostMapping(value = "/ipAllowlistSettings")
     public IpAllowlistSettings saveIpAllowlistSettings(
@@ -247,7 +248,7 @@ public class AdminController extends BaseController {
             throw new ThingsboardException(e.getMessage(), ThingsboardErrorCode.BAD_REQUEST_PARAMS);
         }
 
-        if (!newAllowlist.isEmpty() && !force) {
+        if (!force) {
             String callerIp = request.getRemoteAddr();
             if (!IpAllowlistUtils.isIpAllowed(newAllowlist, provisionedIpAllowlist.get(), callerIp)) {
                 // the UI shows this text directly in a confirmation dialog with its own "Save anyway"

@@ -73,7 +73,9 @@ export class IpAllowlistSettingsComponent extends PageComponent implements HasCo
   }
 
   get isRestricted(): boolean {
-    return !!this.currentAllowlist?.length;
+    // restricted as soon as EITHER list is non-empty - a provisioned-only list (editable list still
+    // empty) restricts login on its own, it doesn't fall back to "no restriction"
+    return !!this.currentAllowlist?.length || !!this.provisionedIpAllowlist.length;
   }
 
   get provisionedIpAllowlist(): string[] {
@@ -81,8 +83,7 @@ export class IpAllowlistSettingsComponent extends PageComponent implements HasCo
   }
 
   get allowedNetworksCount(): number {
-    // the provisioned list is also always allowed once the editable list is non-empty (isRestricted) -
-    // dedupe in case the same entry appears in both, so it isn't counted twice
+    // dedupe in case the same entry appears in both lists, so it isn't counted twice
     return new Set([...(this.currentAllowlist ?? []), ...this.provisionedIpAllowlist]).size;
   }
 

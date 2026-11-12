@@ -101,4 +101,30 @@ public class IpAllowlistUtilsTest {
         assertThat(IpAllowlistUtils.isIpAllowed(restrictive, provisioned, "198.51.100.7")).isFalse();
     }
 
+    @Test
+    public void nonEmptyProvisionedList_restrictsLoginOnItsOwn_evenWithAnEmptyDbManagedList() {
+        // a non-empty provisioned list is a restriction by itself - it does not fall back to
+        // "no restriction" just because the DB-managed list happens to be empty
+        List<String> provisioned = List.of("192.0.2.99");
+        assertThat(IpAllowlistUtils.isIpAllowed(List.of(), provisioned, "192.0.2.99")).isTrue();
+        assertThat(IpAllowlistUtils.isIpAllowed(null, provisioned, "192.0.2.99")).isTrue();
+        assertThat(IpAllowlistUtils.isIpAllowed(List.of(), provisioned, "8.8.8.8")).isFalse();
+        assertThat(IpAllowlistUtils.isIpAllowed(null, provisioned, "8.8.8.8")).isFalse();
+    }
+
+    @Test
+    public void bothListsEmpty_allowsAnyIp() {
+        assertThat(IpAllowlistUtils.isIpAllowed(List.of(), List.of(), "8.8.8.8")).isTrue();
+        assertThat(IpAllowlistUtils.isIpAllowed(null, null, "8.8.8.8")).isTrue();
+    }
+
+    @Test
+    public void bothListsNonEmpty_matchesEitherOne() {
+        List<String> db = List.of("203.0.113.0/24");
+        List<String> provisioned = List.of("192.0.2.99");
+        assertThat(IpAllowlistUtils.isIpAllowed(db, provisioned, "203.0.113.42")).isTrue();
+        assertThat(IpAllowlistUtils.isIpAllowed(db, provisioned, "192.0.2.99")).isTrue();
+        assertThat(IpAllowlistUtils.isIpAllowed(db, provisioned, "198.51.100.7")).isFalse();
+    }
+
 }

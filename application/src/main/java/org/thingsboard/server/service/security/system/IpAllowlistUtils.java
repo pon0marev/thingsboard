@@ -40,22 +40,25 @@ public final class IpAllowlistUtils {
         }
     }
 
-    // loopback is always allowed (break-glass path for direct server access); the provisioned
-    // allowlist is an ops-only, config-driven supplement that is not editable via the UI/API and is
-    // always allowed regardless of the DB-managed list - this covers deployments (e.g. behind Docker
-    // NAT) where the caller's real loopback address never reaches the app as 127.0.0.1; an empty/null
-    // DB-managed list means "no restriction configured" - all independent of whatever the list contains
+    // loopback is always allowed (break-glass path for direct server access). Otherwise: if both the
+    // DB-managed list and the provisioned (ops-only, config-driven, not editable via the UI/API) list
+    // are empty, there's no restriction configured at all - any IP is allowed. As soon as EITHER list
+    // is non-empty, access is restricted to the union of whichever list(s) are actually populated -
+    // e.g. a non-empty provisioned list with an empty DB-managed list restricts login to provisioned
+    // entries only, it does not fall back to "no restriction" the way an empty DB-managed list alone
+    // would.
     public static boolean isIpAllowed(List<String> ipAllowlist, List<String> provisionedAllowlist, String clientIp) {
         if (isLoopback(clientIp)) {
             return true;
         }
-        if (matchesAny(provisionedAllowlist, clientIp)) {
+        if (isEmpty(ipAllowlist) && isEmpty(provisionedAllowlist)) {
             return true;
         }
-        if (ipAllowlist == null || ipAllowlist.isEmpty()) {
-            return true;
-        }
-        return matchesAny(ipAllowlist, clientIp);
+        return matchesAny(provisionedAllowlist, clientIp) || matchesAny(ipAllowlist, clientIp);
+    }
+
+    private static boolean isEmpty(List<String> allowlist) {
+        return allowlist == null || allowlist.isEmpty();
     }
 
     private static boolean matchesAny(List<String> allowlist, String clientIp) {

@@ -346,6 +346,26 @@ public class AdminControllerTest extends AbstractControllerTest {
         }
     }
 
+    @Test
+    public void testSaveEmptyIpAllowlistSettingsRejectedWhenProvisionedListWouldExcludeCaller() throws Exception {
+        loginSysAdmin();
+        // saving an EMPTY list is normally a no-op for access (open to everyone) - but since a
+        // non-empty provisioned list (configured via security.sysadmin_ip_allowlist.provisioned
+        // above) restricts login on its own, going to an empty list here would leave login
+        // restricted to provisioned entries only, excluding this non-provisioned, non-loopback caller
+        String lockoutError = getErrorMessage(
+                saveIpAllowlist(List.of(), "198.51.100.7", false).andExpect(status().isBadRequest()));
+        assertThat(lockoutError).containsIgnoringCase("lock out");
+    }
+
+    @Test
+    public void testSaveEmptyIpAllowlistSettingsSucceedsWhenCallerCoveredByProvisionedList() throws Exception {
+        loginSysAdmin();
+        // caller's IP is in the provisioned list, so an empty DB-managed list still leaves them able
+        // to log in - no force needed
+        saveIpAllowlist(List.of(), "192.0.2.99", false).andExpect(status().isOk());
+    }
+
     // only the tests above that actually leave the allowlist non-empty need this - not an @After,
     // so the ~20 unrelated tests in this class don't each pay for an extra login + POST round trip
     private void clearIpAllowlist() throws Exception {
